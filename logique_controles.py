@@ -9,8 +9,8 @@ from openpyxl.utils import get_column_letter
 FP2E_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'  # Lettre, AA, LL, 6 chiffres
 FP2E_WITH_SUFFIX_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}[A-Z]$'  # FP2E + 1 lettre finale
 # Lettre -> diamètre(s) FP2E (G accepte 60 ou 65)
-FP2E_DIAM_MAP = {'A': 15, 'U': 15, 'V': 15, 'B': 20, 'C': 25, 'D': 30, 'E': 40, 'F': 50,
-                 'G': [60, 65], 'H': 80, 'I': 100, 'J': 125, 'K': 150}
+FP2E_DIAM_MAP = {'A': 15, 'U': 15,'B': 20, 'C': 25, 'D': 30, 'E': 40, 'F': 50,
+                 'G': [60, 65], 'H': 80, 'I': 100, 'J': 125, 'K': 150,'L': 200, 'M': 250, 'N': 300, 'O': 350, 'P':400}
 
 # --- FONCTIONS DE VÉRIFICATION ---
 
