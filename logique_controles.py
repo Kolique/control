@@ -159,6 +159,7 @@ def check_fp2e_with_suffix(row):
 def check_data_radio(df):
     """
     Règles onglet 'Radio' :
+      - Marque autorisée (liste blanche : SAPPEL (H)/(C), KAMSTRUP, U Kamstrup),
       - Protocole par marque/année (KAMSTRUP=WMS, SAPPEL<=22=WMS, >22=OMS),
       - Présence champs clés, coordonnées valides,
       - Règles KAMSTRUP (8 car., = tête, numérique, Ø 15-80),
@@ -246,6 +247,16 @@ def check_data_radio(df):
     df_with_anomalies.loc[df_with_anomalies['Numéro de compteur'].isin(['', 'nan']), 'Anomalie'] += 'Numéro de compteur manquant / '
     df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '
     df_with_anomalies.loc[annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
+
+    # Marque autorisée en radiorelève (normalisation MAJUSCULES sans espaces)
+    marques_autorisees_radio = {'SAPPEL(H)', 'SAPPEL(C)', 'KAMSTRUP', 'UKAMSTRUP'}
+    marque_normalisee = df_with_anomalies['Marque'].str.upper().str.replace(' ', '', regex=False)
+    marque_renseignee = ~df_with_anomalies['Marque'].isin(['', 'nan'])
+    df_with_anomalies.loc[
+        marque_renseignee & (~marque_normalisee.isin(marques_autorisees_radio)),
+        'Anomalie'
+    ] += 'Marque non autorisée en radiorelève / '
+
     tete_manquante = df_with_anomalies['Numéro de tête'].isin(['', 'nan'])
 
     # Tête exigée (hors cas exclus)
@@ -423,6 +434,8 @@ def check_data_radio(df):
 def check_data_tele(df):
     """
     Règles onglet 'Télé' :
+      - Marque autorisée (liste blanche : INTEGRA, ITRON, KAIFA, KAMSTRUP,
+        SAPPEL (C)/(H), SENSUS, SOCAM, U Kamstrup),
       - Protocole selon préfixe Traité (312/455/863/895/903/956 => LRA, sinon SGX) si non manuelle,
       - Présence champs clés, coordonnées valides,
       - KAMSTRUP / SAPPEL / ITRON : longueurs de tête, cohérences,
@@ -500,6 +513,16 @@ def check_data_tele(df):
     df_with_anomalies.loc[df_with_anomalies['Numéro de compteur'].isin(['', 'nan']), 'Anomalie'] += 'Numéro de compteur manquant / '
     df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '
     df_with_anomalies.loc[annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
+
+    # Marque autorisée en télérelève (normalisation MAJUSCULES sans espaces)
+    marques_autorisees_tele = {'INTEGRA', 'ITRON', 'KAIFA', 'KAMSTRUP', 'SAPPEL(C)',
+                               'SAPPEL(H)', 'SENSUS', 'SOCAM', 'UKAMSTRUP'}
+    marque_normalisee = df_with_anomalies['Marque'].str.upper().str.replace(' ', '', regex=False)
+    marque_renseignee = ~df_with_anomalies['Marque'].isin(['', 'nan'])
+    df_with_anomalies.loc[
+        marque_renseignee & (~marque_normalisee.isin(marques_autorisees_tele)),
+        'Anomalie'
+    ] += 'Marque non autorisée en télérelève / '
 
     # Tête requise (hors KAMSTRUP/KAIFA et hors manuelle)
     df_with_anomalies.loc[
@@ -883,6 +906,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "SAPPEL: Protocole ≠ OMS (année > 22)": ['Protocole Radio'],
             "SAPPEL: Protocole ≠ WMS (année <= 22)": ['Protocole Radio'],
             "Marque manquante": ['Marque'],
+            "Marque non autorisée en radiorelève": ['Marque'],
             "Numéro de compteur manquant": ['Numéro de compteur'],
             "Numéro de tête manquant": ['Numéro de tête'],
             "Coordonnées GPS non numériques": ['Latitude', 'Longitude'],
@@ -909,6 +933,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "Protocole incorrect (devrait être LRA)": ['Protocole Radio'],
             "Protocole incorrect (devrait être SGX)": ['Protocole Radio'],
             "Marque manquante": ['Marque'],
+            "Marque non autorisée en télérelève": ['Marque'],
             "Numéro de compteur manquant": ['Numéro de compteur'],
             "Numéro de tête manquant": ['Numéro de tête'],
             "Coordonnées GPS non numériques": ['Latitude', 'Longitude'],

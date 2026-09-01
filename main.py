@@ -31,6 +31,8 @@ ANOMALY_COLUMNS_MAP_UNION = {
     "Protocole incorrect (devrait être SGX)": ["Protocole Radio"],
     # Champs manquants / GPS
     "Marque manquante": ["Marque"],
+    "Marque non autorisée en radiorelève": ["Marque"],
+    "Marque non autorisée en télérelève": ["Marque"],
     "Numéro de compteur manquant": ["Numéro de compteur"],
     "Numéro de tête manquant": ["Numéro de tête"],
     "Coordonnées GPS non numériques": ["Latitude", "Longitude"],
