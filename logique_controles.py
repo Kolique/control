@@ -283,7 +283,7 @@ def check_data_radio(df):
     df_with_anomalies.loc[kamstrup_classique & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '
     df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '
     df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '
-    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(15, 80)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors plage / '
+    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(15, 400)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors plage / '
     
     # KAMSTRUP FP2E (nouveau format commençant par U)
     # Vérifier format FP2E (11 caractères ou 12 si Traité spécial)
@@ -528,7 +528,7 @@ def check_data_tele(df):
     df_with_anomalies.loc[kamstrup_classique & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '
     df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '
     df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '
-    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(15, 80)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors de la plage [15, 80] / '
+    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(15, 400)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors de la plage [15, 400] / '
     
     # KAMSTRUP FP2E (nouveau format commençant par U)
     # Vérifier format FP2E (11 caractères ou 12 si Traité spécial)
@@ -918,7 +918,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'],
             "KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'],
             "KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],
-            "KAMSTRUP: Diamètre hors de la plage [15, 80]": ['Diametre'],
+            "KAMSTRUP: Diamètre hors de la plage [15, 400]": ['Diametre'],
             "KAMSTRUP: Format FP2E invalide": ['Numéro de compteur'],
             "SAPPEL: Tête ≠ 16 caractères": ['Numéro de tête'],
             "SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],
