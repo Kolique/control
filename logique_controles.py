@@ -423,7 +423,7 @@ def check_data_radio(df):
 def check_data_tele(df):
     """
     Règles onglet 'Télé' :
-      - Protocole selon préfixe Traité (903/863 => LRA, sinon SGX) si non manuelle,
+      - Protocole selon préfixe Traité (312/455/863/895/903/956 => LRA, sinon SGX) si non manuelle,
       - Présence champs clés, coordonnées valides,
       - KAMSTRUP / SAPPEL / ITRON : longueurs de tête, cohérences,
       - Déduction Type Compteur,
@@ -485,7 +485,8 @@ def check_data_tele(df):
     has_fp2e_suffix_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
 
     # Protocole attendu (non manuelle)
-    traite_lra_condition = df_with_anomalies['Traité'].str.startswith(('903', '863'), na=False)
+    # Traités en LRA : 312, 455, 863, 895, 903, 956 ; tous les autres en SGX
+    traite_lra_condition = df_with_anomalies['Traité'].str.startswith(('312', '455', '863', '895', '903', '956'), na=False)
     protocole_incorrect_lra = (~is_mode_manuelle) & traite_lra_condition & (df_with_anomalies['Protocole Radio'].str.upper() != 'LRA')
     df_with_anomalies.loc[protocole_incorrect_lra, 'Anomalie'] += 'Protocole incorrect (devrait être LRA) / '
     df_with_anomalies.loc[protocole_incorrect_lra, 'Correction Protocole Radio'] = 'LRA'
