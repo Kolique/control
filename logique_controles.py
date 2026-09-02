@@ -220,6 +220,7 @@ def check_data_radio(df):
 
     # Flags marques
     is_kamstrup = df_with_anomalies['Marque'].str.upper() == 'KAMSTRUP'
+    is_u_kamstrup = df_with_anomalies['Marque'].str.upper().str.replace(' ', '', regex=False) == 'UKAMSTRUP'
     is_sappel = df_with_anomalies['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)'])
     is_itron = df_with_anomalies['Marque'].str.upper() == 'ITRON'
     annee_fabrication_num = pd.to_numeric(df_with_anomalies['Année de fabrication'], errors='coerce')
@@ -302,6 +303,16 @@ def check_data_radio(df):
     kamstrup_fp2e_format_ko = kamstrup_fp2e & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
     df_with_anomalies.loc[kamstrup_fp2e_format_ko, 'Anomalie'] += 'KAMSTRUP: Format FP2E invalide / '
 
+    # Marque U Kamstrup : compteur conforme FP2E + tête à 8 chiffres
+    u_kamstrup_format_ko = is_u_kamstrup & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
+    df_with_anomalies.loc[u_kamstrup_format_ko, 'Anomalie'] += 'U Kamstrup: Format FP2E invalide / '
+    u_kamstrup_tete_ko = (
+        is_u_kamstrup
+        & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
+        & (~df_with_anomalies['Numéro de tête'].str.match(r'^\d{8}$'))
+    )
+    df_with_anomalies.loc[u_kamstrup_tete_ko, 'Anomalie'] += 'U Kamstrup: Tête ≠ 8 chiffres / '
+
     # Règles SAPPEL / ITRON spécifiques
     df_with_anomalies.loc[
         is_sappel
@@ -369,7 +380,8 @@ def check_data_radio(df):
     sappel_non_manuelle_fp2e = is_sappel & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE')
     manuelle_format_ok = (df_with_anomalies['Mode de relève'].str.upper() == 'MANUELLE') & (has_fp2e_format | (is_traite_special & has_fp2e_suffix_format))
     kamstrup_fp2e_check = kamstrup_fp2e & has_fp2e_format
-    fp2e_check_condition = sappel_non_manuelle_fp2e | manuelle_format_ok | kamstrup_fp2e_check
+    u_kamstrup_fp2e_check = is_u_kamstrup & has_fp2e_format
+    fp2e_check_condition = sappel_non_manuelle_fp2e | manuelle_format_ok | kamstrup_fp2e_check | u_kamstrup_fp2e_check
 
     fp2e_results = df_with_anomalies[fp2e_check_condition & has_fp2e_format].apply(check_fp2e_details_radio, axis=1)
     for index, result in fp2e_results.items():
@@ -383,7 +395,8 @@ def check_data_radio(df):
     
     # Contrôles FP2E avec suffixe si Traité = 965/455/899 (y compris KAMSTRUP)
     kamstrup_fp2e_suffix_check = kamstrup_fp2e & has_fp2e_suffix_format & is_traite_special
-    fp2e_suffix_check = (sappel_non_manuelle_fp2e | manuelle_format_ok | kamstrup_fp2e_suffix_check) & has_fp2e_suffix_format & is_traite_special
+    u_kamstrup_fp2e_suffix_check = is_u_kamstrup & has_fp2e_suffix_format & is_traite_special
+    fp2e_suffix_check = (sappel_non_manuelle_fp2e | manuelle_format_ok | kamstrup_fp2e_suffix_check | u_kamstrup_fp2e_suffix_check) & has_fp2e_suffix_format & is_traite_special
     fp2e_suffix_results = df_with_anomalies[fp2e_suffix_check].apply(check_fp2e_with_suffix, axis=1)
     for index, result in fp2e_suffix_results.items():
         anomalies, corrections = result
@@ -484,6 +497,7 @@ def check_data_tele(df):
 
     # Flags
     is_kamstrup = df_with_anomalies['Marque'].str.upper() == 'KAMSTRUP'
+    is_u_kamstrup = df_with_anomalies['Marque'].str.upper().str.replace(' ', '', regex=False) == 'UKAMSTRUP'
     is_sappel = df_with_anomalies['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)', 'SAPPEL(C)'])
     is_itron = df_with_anomalies['Marque'].str.upper() == 'ITRON'
     is_kaifa = df_with_anomalies['Marque'].str.upper() == 'KAIFA'
@@ -559,6 +573,16 @@ def check_data_tele(df):
     kamstrup_fp2e_format_ko = kamstrup_fp2e & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
     df_with_anomalies.loc[kamstrup_fp2e_format_ko, 'Anomalie'] += 'KAMSTRUP: Format FP2E invalide / '
 
+    # Marque U Kamstrup : compteur conforme FP2E + tête à 8 chiffres
+    u_kamstrup_format_ko = is_u_kamstrup & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
+    df_with_anomalies.loc[u_kamstrup_format_ko, 'Anomalie'] += 'U Kamstrup: Format FP2E invalide / '
+    u_kamstrup_tete_ko = (
+        is_u_kamstrup
+        & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
+        & (~df_with_anomalies['Numéro de tête'].str.match(r'^\d{8}$'))
+    )
+    df_with_anomalies.loc[u_kamstrup_tete_ko, 'Anomalie'] += 'U Kamstrup: Tête ≠ 8 chiffres / '
+
     # SAPPEL / ITRON longueurs de tête
     df_with_anomalies.loc[
         is_sappel & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])) & (df_with_anomalies['Numéro de tête'].str.len() != 16),
@@ -610,7 +634,8 @@ def check_data_tele(df):
 
     # Contrôles FP2E (zone télé) - Standard (y compris KAMSTRUP FP2E)
     kamstrup_fp2e_check = kamstrup_fp2e & has_fp2e_format
-    fp2e_condition = ((is_sappel | is_itron) & (~is_mode_manuelle)) | (is_mode_manuelle & has_fp2e_format) | kamstrup_fp2e_check
+    u_kamstrup_fp2e_check = is_u_kamstrup & has_fp2e_format
+    fp2e_condition = ((is_sappel | is_itron) & (~is_mode_manuelle)) | (is_mode_manuelle & has_fp2e_format) | kamstrup_fp2e_check | u_kamstrup_fp2e_check
     fp2e_results = df_with_anomalies[fp2e_condition & has_fp2e_format].apply(check_fp2e_details_tele, axis=1)
 
     for index, result in fp2e_results.items():
@@ -624,7 +649,8 @@ def check_data_tele(df):
     
     # Contrôles FP2E avec suffixe si Traité = 965/455/899 (y compris KAMSTRUP)
     kamstrup_fp2e_suffix_check = kamstrup_fp2e & has_fp2e_suffix_format & is_traite_special
-    fp2e_suffix_condition = ((((is_sappel | is_itron) & (~is_mode_manuelle)) | is_mode_manuelle) | kamstrup_fp2e_suffix_check) & has_fp2e_suffix_format & is_traite_special
+    u_kamstrup_fp2e_suffix_check = is_u_kamstrup & has_fp2e_suffix_format & is_traite_special
+    fp2e_suffix_condition = ((((is_sappel | is_itron) & (~is_mode_manuelle)) | is_mode_manuelle) | kamstrup_fp2e_suffix_check | u_kamstrup_fp2e_suffix_check) & has_fp2e_suffix_format & is_traite_special
     fp2e_suffix_results = df_with_anomalies[fp2e_suffix_condition].apply(check_fp2e_with_suffix, axis=1)
     
     for index, result in fp2e_suffix_results.items():
@@ -918,6 +944,8 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],
             "KAMSTRUP: Diamètre hors plage": ['Diametre'],
             "KAMSTRUP: Format FP2E invalide": ['Numéro de compteur'],
+            "U Kamstrup: Format FP2E invalide": ['Numéro de compteur'],
+            "U Kamstrup: Tête ≠ 8 chiffres": ['Numéro de tête'],
             "SAPPEL: Tête DME ≠ 15 caractères": ['Numéro de tête'],
             "SAPPEL: Compteur ne commence pas par C ou H": ['Numéro de compteur'],
             "SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],
@@ -945,6 +973,8 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],
             "KAMSTRUP: Diamètre hors de la plage [15, 400]": ['Diametre'],
             "KAMSTRUP: Format FP2E invalide": ['Numéro de compteur'],
+            "U Kamstrup: Format FP2E invalide": ['Numéro de compteur'],
+            "U Kamstrup: Tête ≠ 8 chiffres": ['Numéro de tête'],
             "SAPPEL: Tête ≠ 16 caractères": ['Numéro de tête'],
             "SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],
             "SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'],
