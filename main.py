@@ -44,7 +44,6 @@ ANOMALY_COLUMNS_MAP_UNION = {
     "KAMSTRUP: Compteur ≠ Tête": ["Numéro de compteur", "Numéro de tête"],
     "KAMSTRUP: Compteur ou Tête non numérique": ["Numéro de compteur", "Numéro de tête"],
     "KAMSTRUP: Diamètre hors plage": ["Diametre"],
-    "KAMSTRUP: Diamètre hors de la plage [15, 400]": ["Diametre"],
     "KAMSTRUP: Format FP2E invalide": ["Numéro de compteur"],
     "U Kamstrup: Format FP2E invalide": ["Numéro de compteur"],
     "U Kamstrup: Tête ≠ 8 chiffres": ["Numéro de tête"],
