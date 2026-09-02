@@ -659,7 +659,7 @@ def check_data_tele(df):
     df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '
     df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '
     _diam_min, _diam_max = cfg.diametre_min_max('KAMSTRUP')
-    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(_diam_min, _diam_max)), 'Anomalie'] += f'KAMSTRUP: Diamètre hors de la plage [{_diam_min}, {_diam_max}] / '
+    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(_diam_min, _diam_max)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors plage / '
     
     # KAMSTRUP FP2E (nouveau format commençant par U)
     # Vérifier format FP2E (11 caractères ou 12 si Traité spécial)
@@ -1079,7 +1079,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "KAMSTRUP: Compteur ≠ 8 caractères": ['Numéro de compteur'],
             "KAMSTRUP: Compteur ≠ Tête": ['Numéro de compteur', 'Numéro de tête'],
             "KAMSTRUP: Compteur ou Tête non numérique": ['Numéro de compteur', 'Numéro de tête'],
-            "KAMSTRUP: Diamètre hors de la plage [15, 400]": ['Diametre'],
+            "KAMSTRUP: Diamètre hors plage": ['Diametre'],
             "KAMSTRUP: Format FP2E invalide": ['Numéro de compteur'],
             "U Kamstrup: Format FP2E invalide": ['Numéro de compteur'],
             "U Kamstrup: Tête ≠ 8 chiffres": ['Numéro de tête'],
