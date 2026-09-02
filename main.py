@@ -31,6 +31,8 @@ ANOMALY_COLUMNS_MAP_UNION = {
     "Protocole incorrect (devrait être SGX)": ["Protocole Radio"],
     # Champs manquants / GPS
     "Marque manquante": ["Marque"],
+    "Marque non autorisée en radiorelève": ["Marque"],
+    "Marque non autorisée en télérelève": ["Marque"],
     "Numéro de compteur manquant": ["Numéro de compteur"],
     "Numéro de tête manquant": ["Numéro de tête"],
     "Coordonnées GPS non numériques": ["Latitude", "Longitude"],
@@ -42,8 +44,10 @@ ANOMALY_COLUMNS_MAP_UNION = {
     "KAMSTRUP: Compteur ≠ Tête": ["Numéro de compteur", "Numéro de tête"],
     "KAMSTRUP: Compteur ou Tête non numérique": ["Numéro de compteur", "Numéro de tête"],
     "KAMSTRUP: Diamètre hors plage": ["Diametre"],
-    "KAMSTRUP: Diamètre hors de la plage [15, 80]": ["Diametre"],
+    "KAMSTRUP: Diamètre hors de la plage [15, 400]": ["Diametre"],
     "KAMSTRUP: Format FP2E invalide": ["Numéro de compteur"],
+    "U Kamstrup: Format FP2E invalide": ["Numéro de compteur"],
+    "U Kamstrup: Tête ≠ 8 chiffres": ["Numéro de tête"],
     # SAPPEL
     "SAPPEL: Tête DME ≠ 15 caractères": ["Numéro de tête"],
     "SAPPEL: Tête ≠ 16 caractères": ["Numéro de tête"],
