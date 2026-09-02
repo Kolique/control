@@ -1,5 +1,5 @@
 """
-Application Analyses Anomalies - Interface Graphique
+Corecto - Interface Graphique
 Version 2.0
 Permet l'analyse des fichiers de compteurs (Radio, Télé, Manuelle)
 """
@@ -83,7 +83,7 @@ def lazy_import_logique():
 class AnalysesAnomaliesApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Analyses Anomalies - V2.0")
+        self.root.title("Corecto")
         self.root.geometry("950x750")
         self.root.resizable(False, False)
         
@@ -135,7 +135,7 @@ class AnalysesAnomaliesApp:
         
         title_label = tk.Label(
             header_inner,
-            text="📊 Analyses Anomalies",
+            text="📊 Corecto",
             font=("Segoe UI", 28, "bold"),
             bg=self.primary_color,
             fg="white"

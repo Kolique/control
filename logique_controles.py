@@ -433,11 +433,14 @@ def check_data_radio(df):
     ] += 'ITRON: Compteur ne commence pas par I ou D / '
 
     # Déduction du 'Type Compteur' attendu via 1er et 4e char du n°
+    # Ne s'applique qu'aux anciens codes à 2 lettres (CF, HL, IB...) ; les codes
+    # comme SEN3, SEN4, KM21, MAG1... ne suivent pas cette logique et sont ignorés.
     is_brand_ok = is_sappel | is_itron
     is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
     starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha()
     fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
-    condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter
+    type_est_2_lettres = df_with_anomalies['Type Compteur'].astype(str).str.match(r'^[A-Za-z]{2}$', na=False)
+    condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter & type_est_2_lettres
 
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
     if not rows_to_check.empty:
@@ -702,12 +705,14 @@ def check_data_tele(df):
     df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '
     df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
 
-    # Déduction 'Type Compteur'
+    # Déduction 'Type Compteur' (uniquement pour les anciens codes à 2 lettres ;
+    # SEN3, SEN4, KM21, MAG1... sont ignorés car ils ne suivent pas cette logique)
     is_brand_ok = is_sappel | is_itron
     is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
     starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha()
     fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
-    condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter
+    type_est_2_lettres = df_with_anomalies['Type Compteur'].astype(str).str.match(r'^[A-Za-z]{2}$', na=False)
+    condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter & type_est_2_lettres
 
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
     if not rows_to_check.empty:
@@ -911,8 +916,10 @@ def check_data_manuelle(df):
             df_with_anomalies.loc[index, 'Correction Diamètre'] = corrections['diametre']
 
     # Déduction 'Type Compteur' (SAPPEL : c0+c3 ; ITRON : I+c3)
+    # Uniquement pour les anciens codes à 2 lettres ; SEN3, SEN4, KM21... ignorés.
     starts_with_key_letter = df_with_anomalies['Numéro de compteur'].str.startswith(('C', 'H', 'I', 'D'))
-    condition_type_compteur = has_fp2e_format & starts_with_key_letter
+    type_est_2_lettres = df_with_anomalies['Type Compteur'].astype(str).str.match(r'^[A-Za-z]{2}$', na=False)
+    condition_type_compteur = has_fp2e_format & starts_with_key_letter & type_est_2_lettres
     rows_to_check = df_with_anomalies[condition_type_compteur].copy()
 
     if not rows_to_check.empty:
