@@ -376,8 +376,18 @@ def check_data_radio(df):
     kamstrup_fp2e_format_ko = kamstrup_fp2e & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
     df_with_anomalies.loc[kamstrup_fp2e_format_ko, 'Anomalie'] += 'KAMSTRUP: Format FP2E invalide / '
 
-    # Marque U Kamstrup : compteur conforme FP2E + tête à 8 chiffres
-    u_kamstrup_format_ko = is_u_kamstrup & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
+    # Marque U Kamstrup : compteur à 11 caractères (12 si Traité spécial),
+    # conforme FP2E, + tête à 8 chiffres
+    compteur_len = df_with_anomalies['Numéro de compteur'].str.len()
+    compteur_present = ~df_with_anomalies['Numéro de compteur'].isin(['', 'nan'])
+    longueur_ok = (compteur_len == 11) | (is_traite_special & (compteur_len == 12))
+    u_kamstrup_len_ko = is_u_kamstrup & compteur_present & (~longueur_ok)
+    df_with_anomalies.loc[u_kamstrup_len_ko, 'Anomalie'] += 'U Kamstrup: Compteur ≠ 11 caractères / '
+    # Format FP2E vérifié seulement si la longueur est correcte (évite un double message)
+    u_kamstrup_format_ko = (
+        is_u_kamstrup & compteur_present & longueur_ok
+        & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
+    )
     df_with_anomalies.loc[u_kamstrup_format_ko, 'Anomalie'] += 'U Kamstrup: Format FP2E invalide / '
     u_kamstrup_tete_ko = (
         is_u_kamstrup
@@ -657,8 +667,18 @@ def check_data_tele(df):
     kamstrup_fp2e_format_ko = kamstrup_fp2e & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
     df_with_anomalies.loc[kamstrup_fp2e_format_ko, 'Anomalie'] += 'KAMSTRUP: Format FP2E invalide / '
 
-    # Marque U Kamstrup : compteur conforme FP2E + tête à 8 chiffres
-    u_kamstrup_format_ko = is_u_kamstrup & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
+    # Marque U Kamstrup : compteur à 11 caractères (12 si Traité spécial),
+    # conforme FP2E, + tête à 8 chiffres
+    compteur_len = df_with_anomalies['Numéro de compteur'].str.len()
+    compteur_present = ~df_with_anomalies['Numéro de compteur'].isin(['', 'nan'])
+    longueur_ok = (compteur_len == 11) | (is_traite_special & (compteur_len == 12))
+    u_kamstrup_len_ko = is_u_kamstrup & compteur_present & (~longueur_ok)
+    df_with_anomalies.loc[u_kamstrup_len_ko, 'Anomalie'] += 'U Kamstrup: Compteur ≠ 11 caractères / '
+    # Format FP2E vérifié seulement si la longueur est correcte (évite un double message)
+    u_kamstrup_format_ko = (
+        is_u_kamstrup & compteur_present & longueur_ok
+        & (~has_fp2e_format) & (~(is_traite_special & has_fp2e_suffix_format))
+    )
     df_with_anomalies.loc[u_kamstrup_format_ko, 'Anomalie'] += 'U Kamstrup: Format FP2E invalide / '
     u_kamstrup_tete_ko = (
         is_u_kamstrup

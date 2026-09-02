@@ -45,7 +45,8 @@ DEFAUT_TYPES_COMPTEUR = [
 DEFAUT_TRAITES_LRA = ["312", "455", "863", "895", "903", "956"]
 
 # Plage de diamètre autorisée par marque (compteurs classiques).
-DEFAUT_PLAGE_DIAMETRE = {"KAMSTRUP": (15, 400)}
+# Ne s'applique PAS à « U Kamstrup » (compteurs FP2E), seulement à « KAMSTRUP ».
+DEFAUT_PLAGE_DIAMETRE = {"KAMSTRUP": (15, 80)}
 
 # Longueur de tête attendue selon (Mode, Marque, Type Compteur).
 # Type Compteur vide = s'applique à toutes les valeurs de la marque.
