@@ -51,6 +51,8 @@ ANOMALY_COLUMNS_MAP_UNION = {
     # SAPPEL
     "SAPPEL: Tête DME ≠ 15 caractères": ["Numéro de tête"],
     "SAPPEL: Tête ≠ 16 caractères": ["Numéro de tête"],
+    "SAPPEL SEN4: Tête ≠ 16 caractères": ["Numéro de tête"],
+    "SAPPEL SEN3: Tête ≠ 15 caractères": ["Numéro de tête"],
     "SAPPEL: Compteur ne commence pas par C ou H": ["Numéro de compteur"],
     "SAPPEL: Incohérence Marque/Compteur (C)": ["Marque"],
     "SAPPEL: Incohérence Marque/Compteur (H)": ["Marque"],

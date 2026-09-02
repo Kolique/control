@@ -321,6 +321,15 @@ def check_data_radio(df):
         'Anomalie'
     ] += 'SAPPEL: Tête DME ≠ 15 caractères / '
 
+    # SAPPEL Type Compteur SEN4 : tête à 16 caractères (radiorelève)
+    df_with_anomalies.loc[
+        is_sappel
+        & (df_with_anomalies['Type Compteur'].str.upper().str.strip() == 'SEN4')
+        & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
+        & (df_with_anomalies['Numéro de tête'].str.len() != 16),
+        'Anomalie'
+    ] += 'SAPPEL SEN4: Tête ≠ 16 caractères / '
+
     df_with_anomalies.loc[
         is_sappel
         & (df_with_anomalies['Mode de relève'].str.upper() != 'MANUELLE')
@@ -585,9 +594,21 @@ def check_data_tele(df):
 
     # SAPPEL / ITRON longueurs de tête
     df_with_anomalies.loc[
-        is_sappel & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])) & (df_with_anomalies['Numéro de tête'].str.len() != 16),
+        is_sappel
+        & (df_with_anomalies['Type Compteur'].str.upper().str.strip() != 'SEN3')
+        & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
+        & (df_with_anomalies['Numéro de tête'].str.len() != 16),
         'Anomalie'
     ] += 'SAPPEL: Tête ≠ 16 caractères / '
+
+    # SAPPEL Type Compteur SEN3 : tête à 15 caractères (télérelève)
+    df_with_anomalies.loc[
+        is_sappel
+        & (df_with_anomalies['Type Compteur'].str.upper().str.strip() == 'SEN3')
+        & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
+        & (df_with_anomalies['Numéro de tête'].str.len() != 15),
+        'Anomalie'
+    ] += 'SAPPEL SEN3: Tête ≠ 15 caractères / '
 
     # Cohérences marque vs préfixe
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C')
@@ -947,6 +968,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "U Kamstrup: Format FP2E invalide": ['Numéro de compteur'],
             "U Kamstrup: Tête ≠ 8 chiffres": ['Numéro de tête'],
             "SAPPEL: Tête DME ≠ 15 caractères": ['Numéro de tête'],
+            "SAPPEL SEN4: Tête ≠ 16 caractères": ['Numéro de tête'],
             "SAPPEL: Compteur ne commence pas par C ou H": ['Numéro de compteur'],
             "SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],
             "SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'],
@@ -976,6 +998,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "U Kamstrup: Format FP2E invalide": ['Numéro de compteur'],
             "U Kamstrup: Tête ≠ 8 chiffres": ['Numéro de tête'],
             "SAPPEL: Tête ≠ 16 caractères": ['Numéro de tête'],
+            "SAPPEL SEN3: Tête ≠ 15 caractères": ['Numéro de tête'],
             "SAPPEL: Incohérence Marque/Compteur (C)": ['Marque'],
             "SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'],
             "ITRON: Tête ≠ 8 caractères": ['Numéro de tête'],
