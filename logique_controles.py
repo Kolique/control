@@ -12,6 +12,15 @@ FP2E_WITH_SUFFIX_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}[A-Z]$'  # FP2E + 1 lettre fi
 FP2E_DIAM_MAP = {'A': 15, 'U': 15,'B': 20, 'C': 25, 'D': 30, 'E': 40, 'F': 50,
                  'G': [60, 65], 'H': 80, 'I': 100, 'J': 125, 'K': 150,'L': 200, 'M': 250, 'N': 300, 'O': 350, 'P':400}
 
+# Liste blanche des Type Compteur valides (comparaison en MAJUSCULES sans espaces).
+# Toute valeur renseignée hors de cette liste est signalée en anomalie.
+TYPE_COMPTEUR_VALIDES = frozenset({
+    'ALTO', 'AQ4', 'CF', 'CL', 'CS', 'CV', 'GV', 'GW', 'GY', 'HH',
+    'HL', 'HS', 'HT', 'HU', 'HV', 'HY', 'HZ', 'IB', 'II', 'IJ',
+    'IK', 'IL', 'INT3', 'KAI8', 'KI22', 'KI31', 'KI32', 'KM21', 'LD22', 'MAG1',
+    'MAG3', 'MAG6', 'MAG8', 'RTKD', 'SEN3', 'SEN4', 'UH', 'UJ', 'UK', 'YR',
+})
+
 # --- FONCTIONS DE VÉRIFICATION ---
 
 
@@ -257,6 +266,14 @@ def check_data_radio(df):
         marque_renseignee & (~marque_normalisee.isin(marques_autorisees_radio)),
         'Anomalie'
     ] += 'Marque non autorisée en radiorelève / '
+
+    # Type Compteur autorisé (liste blanche, comparaison MAJUSCULES sans espaces)
+    type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
+    type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
+    df_with_anomalies.loc[
+        type_compteur_renseigne & (~type_compteur_norm.isin(TYPE_COMPTEUR_VALIDES)),
+        'Anomalie'
+    ] += 'Type Compteur non autorisé / '
 
     tete_manquante = df_with_anomalies['Numéro de tête'].isin(['', 'nan'])
 
@@ -547,6 +564,14 @@ def check_data_tele(df):
         'Anomalie'
     ] += 'Marque non autorisée en télérelève / '
 
+    # Type Compteur autorisé (liste blanche, comparaison MAJUSCULES sans espaces)
+    type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
+    type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
+    df_with_anomalies.loc[
+        type_compteur_renseigne & (~type_compteur_norm.isin(TYPE_COMPTEUR_VALIDES)),
+        'Anomalie'
+    ] += 'Type Compteur non autorisé / '
+
     # Tête requise (hors KAMSTRUP/KAIFA et hors manuelle)
     df_with_anomalies.loc[
         df_with_anomalies['Numéro de tête'].isin(['', 'nan']) & (~is_kamstrup) & (~is_kaifa) & (~is_mode_manuelle),
@@ -772,6 +797,14 @@ def check_data_manuelle(df):
     coord_invalid = ((df_with_anomalies['Latitude'] == 0) | (~df_with_anomalies['Latitude'].between(-90, 90))) | ((df_with_anomalies['Longitude'] == 0) | (~df_with_anomalies['Longitude'].between(-180, 180)))
     df_with_anomalies.loc[coord_invalid, 'Anomalie'] += 'Coordonnées GPS invalides / '
 
+    # Type Compteur autorisé (liste blanche, comparaison MAJUSCULES sans espaces)
+    type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
+    type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
+    df_with_anomalies.loc[
+        type_compteur_renseigne & (~type_compteur_norm.isin(TYPE_COMPTEUR_VALIDES)),
+        'Anomalie'
+    ] += 'Type Compteur non autorisé / '
+
     # Flags marques
     is_sappel = df_with_anomalies['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)'])
     is_itron = df_with_anomalies['Marque'].str.upper() == 'ITRON'
@@ -977,6 +1010,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "Le diamètre n'est pas conforme": ['Diametre'],
             "L'année de millésime n'est pas conforme": ['Année de fabrication'],
             "Incohérence Type Compteur": ['Type Compteur'],
+            "Type Compteur non autorisé": ['Type Compteur'],
         }
     elif tab_type == "tele":
         anomaly_columns_map = {
@@ -1008,6 +1042,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "Année millésime non conforme FP2E": ['Année de fabrication'],
             "Diamètre non conforme FP2E": ['Diametre'],
             "Incohérence Type Compteur": ['Type Compteur'],
+            "Type Compteur non autorisé": ['Type Compteur'],
         }
     elif tab_type == "manuelle":
         anomaly_columns_map = {
@@ -1023,6 +1058,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "SAPPEL: Incohérence Marque/Compteur (H)": ['Marque'],
             "ITRON: Incohérence Marque/Compteur": ['Marque'],
             "Incohérence Type Compteur": ['Type Compteur'],
+            "Type Compteur non autorisé": ['Type Compteur'],
         }
 
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:

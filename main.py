@@ -69,6 +69,7 @@ ANOMALY_COLUMNS_MAP_UNION = {
     "Année millésime non conforme FP2E": ["Année de fabrication"],
     "Diamètre non conforme FP2E": ["Diametre"],
     "Incohérence Type Compteur": ["Type Compteur"],
+    "Type Compteur non autorisé": ["Type Compteur"],
     # NOUVEAU: FP2E avec suffixe (marques autres)
     "L'année de millésime n'est pas conforme (FP2E+suffixe)": ["Année de fabrication"],
     "Le diamètre n'est pas conforme (FP2E+suffixe)": ["Diametre"],
