@@ -62,6 +62,15 @@ DEFAUT_LONGUEUR_TETE = [
     ("Tele", "ITRON", "", 8),
 ]
 
+# Correspondance lettre FP2E (4e caractère du n° de compteur) -> diamètre(s).
+# Une lettre peut accepter plusieurs diamètres (ex. G = 60 ou 65).
+# Le 1er diamètre de la liste sert de correction proposée par défaut.
+DEFAUT_DIAMETRE_FP2E = {
+    "A": [15], "U": [15], "B": [20], "C": [25], "D": [30], "E": [40], "F": [50],
+    "G": [60, 65], "H": [80], "I": [100], "J": [125], "K": [150],
+    "L": [200], "M": [250], "N": [300], "O": [350], "P": [400],
+}
+
 
 # =====================================================================
 #  Outils
@@ -117,6 +126,8 @@ class ReglesConfig:
         self.traites_lra = list(DEFAUT_TRAITES_LRA)
         self.plage_diametre = dict(DEFAUT_PLAGE_DIAMETRE)
         self.longueur_tete = list(DEFAUT_LONGUEUR_TETE)
+        # Dict prêt à l'emploi {LETTRE: [diamètres]} (utilisé par les règles FP2E)
+        self.diametre_fp2e = {k.upper(): list(v) for k, v in DEFAUT_DIAMETRE_FP2E.items()}
 
     # ---- Vues normalisées (utilisées par le moteur) ----
 
@@ -185,6 +196,7 @@ def charger_config(creer_si_absent: bool = True) -> ReglesConfig:
     _charger_lra(cfg, feuilles)
     _charger_diametre(cfg, feuilles)
     _charger_tete(cfg, feuilles)
+    _charger_diametre_fp2e(cfg, feuilles)
     return cfg
 
 
@@ -274,6 +286,24 @@ def _charger_tete(cfg, feuilles):
         cfg.longueur_tete = res
 
 
+def _charger_diametre_fp2e(cfg, feuilles):
+    df = _feuille(feuilles, "Diametre_FP2E")
+    if df is None or not {"Lettre", "Diametre"}.issubset(df.columns):
+        cfg.avertissements.append("Onglet 'Diametre_FP2E' absent/incomplet : défaut utilisé.")
+        return
+    res = {}
+    for _, row in df.iterrows():
+        lettre = _norm(row.get("Lettre"))
+        try:
+            diam = int(float(row.get("Diametre")))
+        except (TypeError, ValueError):
+            continue
+        if len(lettre) == 1 and lettre.isalpha():
+            res.setdefault(lettre, []).append(diam)
+    if res:
+        cfg.diametre_fp2e = res
+
+
 # =====================================================================
 #  Génération du fichier par défaut
 # =====================================================================
@@ -290,12 +320,16 @@ NOTICE = [
     ["  • Traites_LRA_tele      : préfixes de Traité en LRA (télé). Le reste = SGX."],
     ["  • Plage_diametre        : diamètre min/max autorisé par marque."],
     ["  • Longueur_tete         : longueur de tête attendue selon Mode/Marque/Type."],
+    ["  • Diametre_FP2E         : diamètre(s) correspondant à chaque lettre FP2E."],
     [""],
     ["Règles :"],
     ["  - Mode = Radio, Tele ou Manuelle (selon l'onglet)."],
     ["  - Une valeur vide dans 'Type Compteur' (onglet Longueur_tete) = s'applique"],
     ["    à toutes les valeurs de la marque. Une ligne avec un Type précis est"],
     ["    prioritaire sur la ligne générale."],
+    ["  - Onglet Diametre_FP2E : une ligne par (Lettre, Diametre). Une lettre qui"],
+    ["    accepte plusieurs diamètres a plusieurs lignes (ex. G -> 60 et G -> 65)."],
+    ["    Le 1er diamètre listé pour une lettre sert de correction proposée."],
     ["  - Ne renommez PAS les onglets ni les colonnes (en-têtes)."],
     ["  - En cas d'erreur de saisie, l'application ignore la partie concernée et"],
     ["    utilise les valeurs par défaut (elle ne plante pas)."],
@@ -322,6 +356,10 @@ def creer_fichier_defaut(chemin: str = None):
     )
     df_tete = pd.DataFrame(DEFAUT_LONGUEUR_TETE,
                            columns=["Mode", "Marque", "Type Compteur", "Longueur"])
+    df_diam_fp2e = pd.DataFrame(
+        [(lettre, d) for lettre, diams in DEFAUT_DIAMETRE_FP2E.items() for d in diams],
+        columns=["Lettre", "Diametre"],
+    )
     df_notice = pd.DataFrame(NOTICE)
 
     with pd.ExcelWriter(chemin, engine="openpyxl") as writer:
@@ -331,6 +369,7 @@ def creer_fichier_defaut(chemin: str = None):
         df_lra.to_excel(writer, sheet_name="Traites_LRA_tele", index=False)
         df_diam.to_excel(writer, sheet_name="Plage_diametre", index=False)
         df_tete.to_excel(writer, sheet_name="Longueur_tete", index=False)
+        df_diam_fp2e.to_excel(writer, sheet_name="Diametre_FP2E", index=False)
 
         # Largeur de colonnes lisible
         for ws in writer.book.worksheets:
