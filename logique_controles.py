@@ -10,9 +10,14 @@ import regles_config
 # --- RÉFÉRENCES COMMUNES ---
 FP2E_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'  # Lettre, AA, LL, 6 chiffres
 FP2E_WITH_SUFFIX_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}[A-Z]$'  # FP2E + 1 lettre finale
-# Lettre -> diamètre(s) FP2E (G accepte 60 ou 65)
-FP2E_DIAM_MAP = {'A': 15, 'U': 15,'B': 20, 'C': 25, 'D': 30, 'E': 40, 'F': 50,
-                 'G': [60, 65], 'H': 80, 'I': 100, 'J': 125, 'K': 150,'L': 200, 'M': 250, 'N': 300, 'O': 350, 'P':400}
+# Lettre -> diamètre(s) FP2E : valeurs par défaut (repli). La table réellement
+# utilisée est lue depuis la configuration Excel (onglet Diametre_FP2E).
+FP2E_DIAM_MAP = {k: list(v) for k, v in regles_config.DEFAUT_DIAMETRE_FP2E.items()}
+
+
+def _diam_map_fp2e():
+    """Table lettre -> [diamètres] issue de la configuration (avec repli)."""
+    return regles_config.get_config().diametre_fp2e
 
 # Repli local si la configuration Excel est indisponible (valeurs par défaut).
 TYPE_COMPTEUR_VALIDES = frozenset(regles_config.DEFAUT_TYPES_COMPTEUR)
@@ -109,16 +114,14 @@ def check_fp2e_details_radio(row):
             corrections['annee'] = annee_compteur
 
         # Diamètre attendu depuis la lettre
-        expected_diametres = FP2E_DIAM_MAP.get(lettre_diam, [])
+        expected_diametres = _diam_map_fp2e().get(lettre_diam, [])
         if not isinstance(expected_diametres, list):
             expected_diametres = [expected_diametres]
 
         if pd.isna(diametre_val) or diametre_val not in expected_diametres:
             anomalies.append("Le diamètre n'est pas conforme")
-            # Politique : G -> 60 par défaut, sinon 1er diamètre de la liste
-            if lettre_diam == 'G':
-                corrections['diametre'] = '60'
-            elif expected_diametres:
+            # Correction proposée : 1er diamètre listé pour la lettre
+            if expected_diametres:
                 corrections['diametre'] = str(expected_diametres[0])
 
     except (TypeError, ValueError, IndexError):
@@ -153,15 +156,14 @@ def check_fp2e_details_tele(row):
             anomalies.append('Année millésime non conforme FP2E')
             corrections['annee'] = annee_compteur
 
-        expected_diametres = FP2E_DIAM_MAP.get(lettre_diam, [])
+        expected_diametres = _diam_map_fp2e().get(lettre_diam, [])
         if not isinstance(expected_diametres, list):
             expected_diametres = [expected_diametres]
 
         if pd.isna(diametre_val) or diametre_val not in expected_diametres:
             anomalies.append('Diamètre non conforme FP2E')
-            if lettre_diam == 'G':
-                corrections['diametre'] = '60'
-            elif expected_diametres:
+            # Correction proposée : 1er diamètre listé pour la lettre
+            if expected_diametres:
                 corrections['diametre'] = str(expected_diametres[0])
 
     except (TypeError, ValueError, IndexError):
@@ -201,16 +203,14 @@ def check_fp2e_with_suffix(row):
             corrections['annee'] = annee_compteur
 
         # Diamètre attendu depuis la lettre
-        expected_diametres = FP2E_DIAM_MAP.get(lettre_diam, [])
+        expected_diametres = _diam_map_fp2e().get(lettre_diam, [])
         if not isinstance(expected_diametres, list):
             expected_diametres = [expected_diametres]
 
         if pd.isna(diametre_val) or diametre_val not in expected_diametres:
             anomalies.append("Le diamètre n'est pas conforme (FP2E+suffixe)")
-            # Politique : G -> 60 par défaut, sinon 1er diamètre de la liste
-            if lettre_diam == 'G':
-                corrections['diametre'] = '60'
-            elif expected_diametres:
+            # Correction proposée : 1er diamètre listé pour la lettre
+            if expected_diametres:
                 corrections['diametre'] = str(expected_diametres[0])
 
     except (TypeError, ValueError, IndexError):
