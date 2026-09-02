@@ -1,10 +1,10 @@
-# 📚 Guide d'installation - Analyses Anomalies
+# 📚 Guide d'installation - Corecto
 
 ## 🎯 Pour les utilisateurs (NON-TECHNIQUES)
 
 ### Option simple : Utiliser le fichier .exe
 
-1. **Télécharger** le fichier `AnalysesAnomalies.exe`
+1. **Télécharger** le fichier `Corecto.exe`
 2. **Double-cliquer** dessus pour lancer l'application
 3. **C'est tout !** Aucune installation nécessaire
 
@@ -38,14 +38,14 @@ L'interface graphique devrait s'ouvrir. Testez avec vos fichiers.
 python compiler_exe.py
 ```
 
-Cela va créer un dossier `dist/` contenant `AnalysesAnomalies.exe`
+Cela va créer un dossier `dist/` contenant `Corecto.exe`
 
 ---
 
 ## 📖 Guide d'utilisation
 
 ### 1️⃣ Lancer l'application
-- Double-cliquez sur `AnalysesAnomalies.exe`
+- Double-cliquez sur `Corecto.exe`
 
 ### 2️⃣ Sélectionner les fichiers
 Deux méthodes au choix :
@@ -115,7 +115,7 @@ sans aucune connaissance en programmation.
 | **Marques_autorisees** | Marques acceptées par mode | Ligne `Tele` / `DIEHL` |
 | **Type_Compteur_autorises** | Codes Type Compteur acceptés (tous modes) | Ligne `ZZ99` |
 | **Traites_LRA_tele** | Préfixes de Traité en LRA (télé), le reste en SGX | Ligne `777` |
-| **Plage_diametre** | Diamètre min/max autorisé par marque | `KAMSTRUP` / `15` / `400` |
+| **Plage_diametre** | Diamètre min/max autorisé par marque | `KAMSTRUP` / `15` / `80` |
 | **Longueur_tete** | Longueur de tête attendue selon Mode/Marque/Type | `Radio` / `KAMSTRUP` / `KM21` / `10` |
 | **Diametre_FP2E** | Diamètre(s) correspondant à chaque lettre FP2E | `G` / `60` et `G` / `65` (2 lignes) |
 
@@ -184,7 +184,7 @@ Pour mettre à jour l'application :
    python compiler_exe.py
    ```
 
-3. Redistribuez le nouveau `AnalysesAnomalies.exe`
+3. Redistribuez le nouveau `Corecto.exe`
 
 ---
 
