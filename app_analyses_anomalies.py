@@ -159,6 +159,26 @@ class AnalysesAnomaliesApp:
             activeforeground=self.primary_dark
         )
         refresh_btn.pack(side="right", anchor="e", padx=(10, 0))
+
+        # === BOUTON RÈGLES (ouvre le fichier Excel de configuration) ===
+        regles_btn = tk.Button(
+            header_inner,
+            text="⚙️ Règles",
+            command=self.ouvrir_regles,
+            bg="white",
+            fg=self.primary_color,
+            font=("Segoe UI", 11, "bold"),
+            relief="flat",
+            cursor="hand2",
+            bd=0,
+            padx=12,
+            height=1,
+            activebackground="#f8f9fa",
+            activeforeground=self.primary_dark
+        )
+        regles_btn.pack(side="right", anchor="e", padx=(10, 0))
+        ToolTip(regles_btn, "Ouvre le fichier Excel des règles d'anomalies.\n"
+                            "Modifiez-le, enregistrez, fermez, puis relancez l'analyse.")
         
         # === CONTENU PRINCIPAL ===
         main_frame = tk.Frame(self.root, bg=self.bg_color)
@@ -478,6 +498,33 @@ class AnalysesAnomaliesApp:
         setattr(self, f"{file_attr}_status_icon", status_icon)
         setattr(self, f"{file_attr}_drop_frame", drop_frame)
     
+    def ouvrir_regles(self):
+        """Ouvre le fichier Excel de configuration des règles (le crée si absent)."""
+        try:
+            import regles_config
+            chemin = regles_config.chemin_fichier()
+            if not os.path.exists(chemin):
+                regles_config.creer_fichier_defaut(chemin)
+                messagebox.showinfo(
+                    "⚙️ Fichier de règles créé",
+                    "Le fichier de règles n'existait pas encore : il vient d'être créé "
+                    "avec les valeurs par défaut.\n\n"
+                    f"Emplacement :\n{chemin}\n\n"
+                    "Il va s'ouvrir. Après modification : enregistrez, fermez, "
+                    "puis relancez l'analyse."
+                )
+            if sys.platform == "win32":
+                os.startfile(chemin)
+            else:
+                subprocess = lazy_import_subprocess()
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.run([opener, chemin])
+        except Exception as e:
+            messagebox.showerror(
+                "❌ Erreur",
+                f"Impossible d'ouvrir le fichier de règles :\n\n{e}"
+            )
+
     def refresh_app(self):
         """Remet l'application à zéro tous les fichiers sélectionnés)"""
         # Réinitialiser les variables de fichiers

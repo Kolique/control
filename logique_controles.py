@@ -5,6 +5,8 @@ from openpyxl.styles import PatternFill, Font
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 
+import regles_config
+
 # --- RÉFÉRENCES COMMUNES ---
 FP2E_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}$'  # Lettre, AA, LL, 6 chiffres
 FP2E_WITH_SUFFIX_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}[A-Z]$'  # FP2E + 1 lettre finale
@@ -12,14 +14,66 @@ FP2E_WITH_SUFFIX_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}[A-Z]$'  # FP2E + 1 lettre fi
 FP2E_DIAM_MAP = {'A': 15, 'U': 15,'B': 20, 'C': 25, 'D': 30, 'E': 40, 'F': 50,
                  'G': [60, 65], 'H': 80, 'I': 100, 'J': 125, 'K': 150,'L': 200, 'M': 250, 'N': 300, 'O': 350, 'P':400}
 
-# Liste blanche des Type Compteur valides (comparaison en MAJUSCULES sans espaces).
-# Toute valeur renseignée hors de cette liste est signalée en anomalie.
-TYPE_COMPTEUR_VALIDES = frozenset({
-    'ALTO', 'AQ4', 'CF', 'CL', 'CS', 'CV', 'GV', 'GW', 'GY', 'HH',
-    'HL', 'HS', 'HT', 'HU', 'HV', 'HY', 'HZ', 'IB', 'II', 'IJ',
-    'IK', 'IL', 'INT3', 'KAI8', 'KI22', 'KI31', 'KI32', 'KM21', 'LD22', 'MAG1',
-    'MAG3', 'MAG6', 'MAG8', 'RTKD', 'SEN3', 'SEN4', 'UH', 'UJ', 'UK', 'YR',
-})
+# Repli local si la configuration Excel est indisponible (valeurs par défaut).
+TYPE_COMPTEUR_VALIDES = frozenset(regles_config.DEFAUT_TYPES_COMPTEUR)
+
+
+def appliquer_longueur_tete(df_with_anomalies, mode, cfg):
+    """Applique les règles de longueur de tête (Mode/Marque/Type Compteur)
+    définies dans la configuration Excel.
+
+    Règle la plus spécifique (Marque + Type) prioritaire sur la règle générale
+    (Marque seule). N'agit que si le numéro de tête est renseigné.
+    """
+    regles = cfg.regles_tete(mode)
+    if not regles:
+        return
+
+    marque_norm = df_with_anomalies['Marque'].astype(str).str.upper().str.replace(' ', '', regex=False)
+    type_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
+    tete = df_with_anomalies['Numéro de tête'].astype(str)
+    tete_renseignee = ~tete.isin(['', 'nan'])
+
+    longueur_attendue = pd.Series([pd.NA] * len(df_with_anomalies), index=df_with_anomalies.index, dtype='object')
+    message = pd.Series([''] * len(df_with_anomalies), index=df_with_anomalies.index)
+
+    # Règles générales d'abord, spécifiques ensuite => la spécifique écrase
+    for (m_norm, t_norm, longueur, msg) in regles:
+        sel = tete_renseignee & (marque_norm == m_norm)
+        if t_norm is not None:
+            sel = sel & (type_norm == t_norm)
+        longueur_attendue[sel] = longueur
+        message[sel] = msg
+
+    longueur_num = pd.to_numeric(longueur_attendue, errors='coerce')
+    mauvais = longueur_num.notna() & (tete.str.len() != longueur_num)
+    df_with_anomalies.loc[mauvais, 'Anomalie'] += message[mauvais] + ' / '
+
+
+def colonnes_surlignage_defaut(libelle):
+    """Déduit, à partir des mots-clés du libellé d'anomalie, les colonnes à
+    surligner. Sert de repli lorsqu'un libellé n'est pas dans la table exacte
+    (notamment pour les règles ajoutées via la configuration Excel)."""
+    l = str(libelle).lower()
+    cols = []
+    if 'tête' in l or 'tete' in l:
+        cols.append('Numéro de tête')
+    if 'diamètre' in l or 'diametre' in l:
+        cols.append('Diametre')
+    if 'protocole' in l:
+        cols.append('Protocole Radio')
+    if 'marque' in l:
+        cols.append('Marque')
+    if 'type compteur' in l:
+        cols.append('Type Compteur')
+    if 'gps' in l or 'coordonnées' in l or 'coordonnees' in l:
+        cols += ['Latitude', 'Longitude']
+    if 'année' in l or 'annee' in l or 'millésime' in l or 'millesime' in l:
+        cols.append('Année de fabrication')
+    if 'compteur' in l and 'type compteur' not in l:
+        cols.append('Numéro de compteur')
+    return cols
+
 
 # --- FONCTIONS DE VÉRIFICATION ---
 
@@ -258,8 +312,9 @@ def check_data_radio(df):
     df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '
     df_with_anomalies.loc[annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
 
-    # Marque autorisée en radiorelève (normalisation MAJUSCULES sans espaces)
-    marques_autorisees_radio = {'SAPPEL(H)', 'SAPPEL(C)', 'KAMSTRUP', 'UKAMSTRUP'}
+    # Marque autorisée en radiorelève (liste blanche configurable)
+    cfg = regles_config.get_config()
+    marques_autorisees_radio = cfg.marques_autorisees_norm('Radio')
     marque_normalisee = df_with_anomalies['Marque'].str.upper().str.replace(' ', '', regex=False)
     marque_renseignee = ~df_with_anomalies['Marque'].isin(['', 'nan'])
     df_with_anomalies.loc[
@@ -267,11 +322,11 @@ def check_data_radio(df):
         'Anomalie'
     ] += 'Marque non autorisée en radiorelève / '
 
-    # Type Compteur autorisé (liste blanche, comparaison MAJUSCULES sans espaces)
+    # Type Compteur autorisé (liste blanche configurable)
     type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
     type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
     df_with_anomalies.loc[
-        type_compteur_renseigne & (~type_compteur_norm.isin(TYPE_COMPTEUR_VALIDES)),
+        type_compteur_renseigne & (~type_compteur_norm.isin(cfg.types_valides_norm())),
         'Anomalie'
     ] += 'Type Compteur non autorisé / '
 
@@ -312,7 +367,8 @@ def check_data_radio(df):
     df_with_anomalies.loc[kamstrup_classique & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '
     df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '
     df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '
-    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(15, 400)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors plage / '
+    _diam_min, _diam_max = cfg.diametre_min_max('KAMSTRUP')
+    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(_diam_min, _diam_max)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors plage / '
     
     # KAMSTRUP FP2E (nouveau format commençant par U)
     # Vérifier format FP2E (11 caractères ou 12 si Traité spécial)
@@ -338,14 +394,8 @@ def check_data_radio(df):
         'Anomalie'
     ] += 'SAPPEL: Tête DME ≠ 15 caractères / '
 
-    # SAPPEL Type Compteur SEN4 : tête à 16 caractères (radiorelève)
-    df_with_anomalies.loc[
-        is_sappel
-        & (df_with_anomalies['Type Compteur'].str.upper().str.strip() == 'SEN4')
-        & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
-        & (df_with_anomalies['Numéro de tête'].str.len() != 16),
-        'Anomalie'
-    ] += 'SAPPEL SEN4: Tête ≠ 16 caractères / '
+    # Longueurs de tête selon Mode/Marque/Type Compteur (configurable)
+    appliquer_longueur_tete(df_with_anomalies, 'Radio', cfg)
 
     df_with_anomalies.loc[
         is_sappel
@@ -537,9 +587,9 @@ def check_data_tele(df):
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_REGEX, na=False)
     has_fp2e_suffix_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
 
-    # Protocole attendu (non manuelle)
-    # Traités en LRA : 312, 455, 863, 895, 903, 956 ; tous les autres en SGX
-    traite_lra_condition = df_with_anomalies['Traité'].str.startswith(('312', '455', '863', '895', '903', '956'), na=False)
+    # Protocole attendu (non manuelle) — préfixes LRA configurables ; le reste en SGX
+    cfg = regles_config.get_config()
+    traite_lra_condition = df_with_anomalies['Traité'].str.startswith(cfg.traites_lra_tuple(), na=False)
     protocole_incorrect_lra = (~is_mode_manuelle) & traite_lra_condition & (df_with_anomalies['Protocole Radio'].str.upper() != 'LRA')
     df_with_anomalies.loc[protocole_incorrect_lra, 'Anomalie'] += 'Protocole incorrect (devrait être LRA) / '
     df_with_anomalies.loc[protocole_incorrect_lra, 'Correction Protocole Radio'] = 'LRA'
@@ -554,9 +604,8 @@ def check_data_tele(df):
     df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '
     df_with_anomalies.loc[annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
 
-    # Marque autorisée en télérelève (normalisation MAJUSCULES sans espaces)
-    marques_autorisees_tele = {'INTEGRA', 'ITRON', 'KAIFA', 'KAMSTRUP', 'SAPPEL(C)',
-                               'SAPPEL(H)', 'SENSUS', 'SOCAM', 'UKAMSTRUP'}
+    # Marque autorisée en télérelève (liste blanche configurable)
+    marques_autorisees_tele = cfg.marques_autorisees_norm('Tele')
     marque_normalisee = df_with_anomalies['Marque'].str.upper().str.replace(' ', '', regex=False)
     marque_renseignee = ~df_with_anomalies['Marque'].isin(['', 'nan'])
     df_with_anomalies.loc[
@@ -564,11 +613,11 @@ def check_data_tele(df):
         'Anomalie'
     ] += 'Marque non autorisée en télérelève / '
 
-    # Type Compteur autorisé (liste blanche, comparaison MAJUSCULES sans espaces)
+    # Type Compteur autorisé (liste blanche configurable)
     type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
     type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
     df_with_anomalies.loc[
-        type_compteur_renseigne & (~type_compteur_norm.isin(TYPE_COMPTEUR_VALIDES)),
+        type_compteur_renseigne & (~type_compteur_norm.isin(cfg.types_valides_norm())),
         'Anomalie'
     ] += 'Type Compteur non autorisé / '
 
@@ -599,7 +648,8 @@ def check_data_tele(df):
     df_with_anomalies.loc[kamstrup_classique & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '
     df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '
     df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '
-    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(15, 400)), 'Anomalie'] += 'KAMSTRUP: Diamètre hors de la plage [15, 400] / '
+    _diam_min, _diam_max = cfg.diametre_min_max('KAMSTRUP')
+    df_with_anomalies.loc[kamstrup_classique & (~df_with_anomalies['Diametre'].between(_diam_min, _diam_max)), 'Anomalie'] += f'KAMSTRUP: Diamètre hors de la plage [{_diam_min}, {_diam_max}] / '
     
     # KAMSTRUP FP2E (nouveau format commençant par U)
     # Vérifier format FP2E (11 caractères ou 12 si Traité spécial)
@@ -617,23 +667,9 @@ def check_data_tele(df):
     )
     df_with_anomalies.loc[u_kamstrup_tete_ko, 'Anomalie'] += 'U Kamstrup: Tête ≠ 8 chiffres / '
 
-    # SAPPEL / ITRON longueurs de tête
-    df_with_anomalies.loc[
-        is_sappel
-        & (df_with_anomalies['Type Compteur'].str.upper().str.strip() != 'SEN3')
-        & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
-        & (df_with_anomalies['Numéro de tête'].str.len() != 16),
-        'Anomalie'
-    ] += 'SAPPEL: Tête ≠ 16 caractères / '
-
-    # SAPPEL Type Compteur SEN3 : tête à 15 caractères (télérelève)
-    df_with_anomalies.loc[
-        is_sappel
-        & (df_with_anomalies['Type Compteur'].str.upper().str.strip() == 'SEN3')
-        & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
-        & (df_with_anomalies['Numéro de tête'].str.len() != 15),
-        'Anomalie'
-    ] += 'SAPPEL SEN3: Tête ≠ 15 caractères / '
+    # Longueurs de tête selon Mode/Marque/Type Compteur (configurable)
+    # Couvre SAPPEL (16, ou 15 pour SEN3) et ITRON (8).
+    appliquer_longueur_tete(df_with_anomalies, 'Tele', cfg)
 
     # Cohérences marque vs préfixe
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C')
@@ -645,11 +681,6 @@ def check_data_tele(df):
     marque_not_sappel_H = df_with_anomalies['Marque'].str.upper() != 'SAPPEL (H)'
     df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '
     df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
-
-    df_with_anomalies.loc[
-        is_itron & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan'])) & (df_with_anomalies['Numéro de tête'].str.len() != 8),
-        'Anomalie'
-    ] += 'ITRON: Tête ≠ 8 caractères / '
 
     # Déduction 'Type Compteur'
     is_brand_ok = is_sappel | is_itron
@@ -797,11 +828,12 @@ def check_data_manuelle(df):
     coord_invalid = ((df_with_anomalies['Latitude'] == 0) | (~df_with_anomalies['Latitude'].between(-90, 90))) | ((df_with_anomalies['Longitude'] == 0) | (~df_with_anomalies['Longitude'].between(-180, 180)))
     df_with_anomalies.loc[coord_invalid, 'Anomalie'] += 'Coordonnées GPS invalides / '
 
-    # Type Compteur autorisé (liste blanche, comparaison MAJUSCULES sans espaces)
+    # Type Compteur autorisé (liste blanche configurable)
+    cfg = regles_config.get_config()
     type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
     type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
     df_with_anomalies.loc[
-        type_compteur_renseigne & (~type_compteur_norm.isin(TYPE_COMPTEUR_VALIDES)),
+        type_compteur_renseigne & (~type_compteur_norm.isin(cfg.types_valides_norm())),
         'Anomalie'
     ] += 'Type Compteur non autorisé / '
 
@@ -1088,8 +1120,9 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
         # Surligne les colonnes concernées par chaque anomalie
         for row_num_all, df_row in enumerate(anomalies_df.iterrows(), 2):
             for anomaly in str(df_row[1]['Anomalie']).split(' / '):
-                if anomaly.strip() in anomaly_columns_map:
-                    for col_name in anomaly_columns_map[anomaly.strip()]:
+                cols_a_surligner = anomaly_columns_map.get(anomaly.strip()) or colonnes_surlignage_defaut(anomaly)
+                if cols_a_surligner:
+                    for col_name in cols_a_surligner:
                         try:
                             ws_all_anomalies.cell(
                                 row=row_num_all,
@@ -1136,8 +1169,9 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             # Surlignage des colonnes liées dans l'onglet de détail
             for row_num_detail, df_row_detail in enumerate(filtered_df.iterrows(), 2):
                 for anomaly in str(df_row_detail[1]['Anomalie']).split(' / '):
-                    if anomaly.strip() in anomaly_columns_map:
-                        for col_name in anomaly_columns_map[anomaly.strip()]:
+                    cols_a_surligner = anomaly_columns_map.get(anomaly.strip()) or colonnes_surlignage_defaut(anomaly)
+                    if cols_a_surligner:
+                        for col_name in cols_a_surligner:
                             try:
                                 ws_detail.cell(
                                     row=row_num_detail,
