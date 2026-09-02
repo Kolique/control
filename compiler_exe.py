@@ -34,10 +34,11 @@ def compiler_en_exe():
         "--icon=NONE",                        # Pas d'icône personnalisée
         "--add-data=logique_controles.py;.", # Inclure le module de logique
         "--add-data=main.py;.",              # Inclure main.py
-        
+        "--add-data=regles_config.py;.",     # Inclure le module de configuration des règles
+
         # Imports critiques pour le fonctionnement
         "--hidden-import=pandas",
-        "--hidden-import=openpyxl", 
+        "--hidden-import=openpyxl",
         "--hidden-import=tkinterdnd2",
         "--hidden-import=xlrd",
         "--hidden-import=tkinter",
@@ -46,6 +47,9 @@ def compiler_en_exe():
         "--hidden-import=threading",
         "--hidden-import=os",
         "--hidden-import=sys",
+        "--hidden-import=logique_controles",
+        "--hidden-import=main",
+        "--hidden-import=regles_config",
         
         # Exclusions pour réduire la taille
         "--exclude-module=matplotlib",
@@ -95,6 +99,7 @@ def compiler_en_exe():
         print("   - app_analyses_anomalies.py")
         print("   - logique_controles.py")
         print("   - main.py")
+        print("   - regles_config.py")
         print()
 
 
