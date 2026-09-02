@@ -120,7 +120,8 @@ def highlight_anomaly_cells(ws, df):
             a = anomaly.strip()
             if not a:
                 continue
-            for col_name in ANOMALY_COLUMNS_MAP_UNION.get(a, []):
+            cols = ANOMALY_COLUMNS_MAP_UNION.get(a) or logique_controles.colonnes_surlignage_defaut(a)
+            for col_name in cols:
                 if col_name in cols_idx:
                     ws.cell(row=r_idx, column=cols_idx[col_name]).fill = RED_FILL
 

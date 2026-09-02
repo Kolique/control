@@ -95,6 +95,50 @@ L'application crée automatiquement :
 
 ---
 
+## ⚙️ Modifier les règles d'anomalies (SANS toucher au code)
+
+Certaines règles peuvent être modifiées directement dans un **fichier Excel**,
+sans aucune connaissance en programmation.
+
+### Comment faire
+
+1. Dans l'application, cliquez sur le bouton **« ⚙️ Règles »** (en haut à droite).
+   - Le fichier `regles_anomalies.xlsx` s'ouvre (il est créé automatiquement au
+     besoin, à côté de l'application).
+2. Modifiez les onglets voulus, **enregistrez** et **fermez** le fichier.
+3. Relancez une analyse : les nouvelles règles sont prises en compte.
+
+### Onglets disponibles
+
+| Onglet | Rôle | Exemple d'ajout |
+|---|---|---|
+| **Marques_autorisees** | Marques acceptées par mode | Ligne `Tele` / `DIEHL` |
+| **Type_Compteur_autorises** | Codes Type Compteur acceptés (tous modes) | Ligne `ZZ99` |
+| **Traites_LRA_tele** | Préfixes de Traité en LRA (télé), le reste en SGX | Ligne `777` |
+| **Plage_diametre** | Diamètre min/max autorisé par marque | `KAMSTRUP` / `15` / `400` |
+| **Longueur_tete** | Longueur de tête attendue selon Mode/Marque/Type | `Radio` / `KAMSTRUP` / `KM21` / `10` |
+
+Pour l'onglet **Longueur_tete**, laisser la colonne *Type Compteur* vide = la
+règle s'applique à **toutes** les valeurs de la marque. Une ligne avec un Type
+précis est **prioritaire** sur la règle générale.
+
+### Sécurité
+
+- En cas d'erreur de saisie (onglet renommé, colonne manquante, valeur invalide),
+  l'application **ignore la partie concernée** et utilise les valeurs par défaut :
+  elle ne plante pas.
+- Pour **repartir de zéro**, supprimez `regles_anomalies.xlsx` et relancez :
+  il sera recréé avec les valeurs par défaut.
+
+### Ce qui n'est PAS modifiable ici
+
+Les règles techniques et stables restent dans le code : format **FP2E** du numéro
+de compteur, cohérence **année/diamètre** déduite du numéro, déduction du Type
+Compteur, règles KAMSTRUP compteur = tête. Pour celles-ci, contactez la personne
+en charge de la maintenance du code.
+
+---
+
 ## ❓ FAQ / Dépannage
 
 ### L'application ne se lance pas
