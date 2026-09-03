@@ -118,6 +118,23 @@ sans aucune connaissance en programmation.
 | **Plage_diametre** | Diamètre min/max autorisé par marque | `KAMSTRUP` / `15` / `80` |
 | **Longueur_tete** | Longueur de tête attendue selon Mode/Marque/Type | `Radio` / `KAMSTRUP` / `KM21` / `10` |
 | **Diametre_FP2E** | Diamètre(s) correspondant à chaque lettre FP2E | `G` / `60` et `G` / `65` (2 lignes) |
+| **Longueur_compteur** | Longueur exacte du n° de compteur (non-FP2E) selon Mode/Marque/Année | `Tele` / `ITRON` / `` / `8` |
+| **Protocole_par_marque** | Protocole Radio attendu par marque/année (radiorelève) | `SAPPEL (C)` / `23` / `99` / `OMS` |
+| **Compteurs_FP2E** | Marques dont le compteur doit être au format FP2E | `ITRON` / `` / `` |
+
+Pour l'onglet **Longueur_compteur**, `Mode` vide = tous modes, `Année min` vide =
+toutes les années. La règle ne concerne que les compteurs **non-FP2E**. Elle
+signale *« MARQUE : Compteur ≠ N caractères »*.
+
+Pour l'onglet **Protocole_par_marque** (radiorelève uniquement), `Année min` /
+`Année max` vides = pas de borne. Ex. `SAPPEL (C)` / `0` / `22` / `WMS` puis
+`SAPPEL (C)` / `23` / `99` / `OMS`. La correction est proposée automatiquement.
+
+Pour l'onglet **Compteurs_FP2E**, chaque ligne = une marque dont le compteur doit
+être au format FP2E (`Mode` vide = tous, `Année min` vide = toutes). Un compteur
+concerné non conforme est signalé *« Format de compteur non FP2E »*. **KAMSTRUP** et
+**U Kamstrup** ont leur propre contrôle de format (préfixe `U`) et n'ont pas à
+figurer ici.
 
 Pour l'onglet **Longueur_tete**, laisser la colonne *Type Compteur* vide = la
 règle s'applique à **toutes** les valeurs de la marque. Une ligne avec un Type

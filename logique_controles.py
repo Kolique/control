@@ -77,6 +77,93 @@ def appliquer_coherence_type_compteur(df_with_anomalies):
     df_with_anomalies.loc[idx, 'Correction Type Compteur'] = correct[mauvais]
 
 
+def appliquer_longueur_compteur(df, mode, cfg, annee_num):
+    """Longueur exacte du n° de compteur selon (Mode, Marque, Année min),
+    définie dans la configuration Excel (onglet 'Longueur_compteur').
+
+    Ne s'applique qu'aux compteurs NON-FP2E (les FP2E ont leur propre format,
+    ainsi que les compteurs commençant par 'U'). Règle la plus spécifique par
+    année (Année min la plus élevée <= année) prioritaire.
+    """
+    regles = cfg.regles_longueur_compteur(mode)
+    if not regles:
+        return
+    marque_norm = df['Marque'].str.upper().str.replace(' ', '', regex=False)
+    compteur = df['Numéro de compteur'].astype(str)
+    present = ~compteur.isin(['', 'nan'])
+    non_fp2e = ~(
+        df['Numéro de compteur'].str.match(FP2E_REGEX, na=False)
+        | df['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
+        | df['Numéro de compteur'].str.upper().str.startswith('U', na=False)
+    )
+
+    longueur_attendue = pd.Series([pd.NA] * len(df), index=df.index, dtype='object')
+    amin_applique = pd.Series([-1] * len(df), index=df.index)
+    message = pd.Series([''] * len(df), index=df.index)
+    for (m_norm, amin, longueur, msg) in regles:  # triées par année min croissante
+        sel = present & non_fp2e & (marque_norm == m_norm)
+        if amin > 0:
+            sel = sel & (annee_num >= amin)
+        sel = sel & (amin >= amin_applique)  # la règle d'année la plus élevée gagne
+        longueur_attendue[sel] = longueur
+        amin_applique[sel] = amin
+        message[sel] = msg
+
+    longueur_num = pd.to_numeric(longueur_attendue, errors='coerce')
+    mauvais = longueur_num.notna() & (compteur.str.len() != longueur_num)
+    df.loc[mauvais, 'Anomalie'] += message[mauvais] + ' / '
+
+
+def appliquer_protocole_marque(df, cfg, annee_num):
+    """Protocole Radio attendu selon (Marque, tranche d'années) — RADIORELÈVE.
+    Configurable via l'onglet Excel 'Protocole_par_marque'.
+    """
+    regles = cfg.regles_protocole_marque()
+    if not regles:
+        return
+    marque_norm = df['Marque'].str.upper().str.replace(' ', '', regex=False)
+    proto_actuel = df['Protocole Radio'].str.upper().str.strip()
+    for (m_norm, label, amin, amax, proto) in regles:
+        sel = (marque_norm == m_norm)
+        toutes_annees = (amin <= 0) and (amax >= 9999)
+        if not toutes_annees:
+            sel = sel & (annee_num >= amin) & (annee_num <= amax)
+        mauvais = sel.fillna(False) & (proto_actuel != proto)
+        df.loc[mauvais, 'Anomalie'] += f'{label}: Protocole ≠ {proto} / '
+        df.loc[mauvais, 'Correction Protocole Radio'] = proto
+
+
+def masque_doit_fp2e(df, mode, cfg, annee_num):
+    """Booléen : lignes dont le compteur DOIT être au format FP2E, selon l'onglet
+    'Compteurs_FP2E' (Marque, Année min, Mode). KAMSTRUP / U Kamstrup exclus
+    (contrôle de format dédié dans le code)."""
+    doit = pd.Series(False, index=df.index)
+    marque_norm = df['Marque'].str.upper().str.replace(' ', '', regex=False)
+    for (m_norm, amin, rmode) in cfg.regles_compteurs_fp2e():
+        if rmode and rmode != mode:
+            continue
+        sel = (marque_norm == m_norm)
+        if amin > 0:
+            sel = sel & (annee_num >= amin)
+        doit = doit | sel.fillna(False)
+    is_kamstrup = df['Marque'].str.upper() == 'KAMSTRUP'
+    is_u_kamstrup = marque_norm == 'UKAMSTRUP'
+    return doit & (~is_kamstrup) & (~is_u_kamstrup)
+
+
+def appliquer_format_fp2e(df, mode, cfg, annee_num, is_traite_special,
+                          has_fp2e_format, has_fp2e_suffix_format):
+    """Signale « Format de compteur non FP2E » pour les compteurs qui doivent
+    être FP2E (onglet 'Compteurs_FP2E') mais ne le sont pas."""
+    doit = masque_doit_fp2e(df, mode, cfg, annee_num)
+    if not doit.any():
+        return
+    present = ~df['Numéro de compteur'].isin(['', 'nan'])
+    fp2e_ok = has_fp2e_format | (is_traite_special & has_fp2e_suffix_format)
+    ko = doit & present & (~fp2e_ok)
+    df.loc[ko, 'Anomalie'] += 'Format de compteur non FP2E / '
+
+
 def colonnes_surlignage_defaut(libelle):
     """Déduit, à partir des mots-clés du libellé d'anomalie, les colonnes à
     surligner. Sert de repli lorsqu'un libellé n'est pas dans la table exacte
@@ -325,18 +412,9 @@ def check_data_radio(df):
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_REGEX, na=False)
     has_fp2e_suffix_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
 
-    # Protocoles attendus
-    kamstrup_protocole_incorrect = is_kamstrup & (df_with_anomalies['Protocole Radio'].str.upper() != 'WMS')
-    df_with_anomalies.loc[kamstrup_protocole_incorrect, 'Anomalie'] += 'KAMSTRUP: Protocole ≠ WMS / '
-    df_with_anomalies.loc[kamstrup_protocole_incorrect, 'Correction Protocole Radio'] = 'WMS'
-
-    sappel_protocole_incorrect_wms = is_sappel & (annee_fabrication_num <= 22) & (df_with_anomalies['Protocole Radio'].str.upper() != 'WMS')
-    df_with_anomalies.loc[sappel_protocole_incorrect_wms, 'Anomalie'] += 'SAPPEL: Protocole ≠ WMS (année <= 22) / '
-    df_with_anomalies.loc[sappel_protocole_incorrect_wms, 'Correction Protocole Radio'] = 'WMS'
-
-    sappel_protocole_incorrect_oms = is_sappel & (annee_fabrication_num > 22) & (df_with_anomalies['Protocole Radio'].str.upper() != 'OMS')
-    df_with_anomalies.loc[sappel_protocole_incorrect_oms, 'Anomalie'] += 'SAPPEL: Protocole ≠ OMS (année > 22) / '
-    df_with_anomalies.loc[sappel_protocole_incorrect_oms, 'Correction Protocole Radio'] = 'OMS'
+    # Protocole Radio attendu par marque/année (configurable : onglet 'Protocole_par_marque')
+    cfg = regles_config.get_config()
+    appliquer_protocole_marque(df_with_anomalies, cfg, annee_fabrication_num)
 
     # Manques / formats GPS
     df_with_anomalies.loc[df_with_anomalies['Marque'].isin(['', 'nan']), 'Anomalie'] += 'Marque manquante / '
@@ -397,7 +475,7 @@ def check_data_radio(df):
     
     # KAMSTRUP Classique (ancien format 8 chiffres)
     kamstrup_valid = kamstrup_classique & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
-    df_with_anomalies.loc[kamstrup_classique & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '
+    # Longueur du n° de compteur : gérée par appliquer_longueur_compteur (onglet 'Longueur_compteur')
     df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '
     df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '
     _diam_min, _diam_max = cfg.diametre_min_max('KAMSTRUP')
@@ -436,6 +514,13 @@ def check_data_radio(df):
         & (df_with_anomalies['Numéro de tête'].str.len() != 15),
         'Anomalie'
     ] += 'SAPPEL: Tête DME ≠ 15 caractères / '
+
+    # Longueur du n° de compteur (non-FP2E) selon Mode/Marque/Année (configurable)
+    appliquer_longueur_compteur(df_with_anomalies, 'Radio', cfg, annee_fabrication_num)
+
+    # Format FP2E requis selon l'onglet 'Compteurs_FP2E'
+    appliquer_format_fp2e(df_with_anomalies, 'Radio', cfg, annee_fabrication_num,
+                          is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
 
     # Longueurs de tête selon Mode/Marque/Type Compteur (configurable)
     appliquer_longueur_tete(df_with_anomalies, 'Radio', cfg)
@@ -687,7 +772,7 @@ def check_data_tele(df):
     
     # KAMSTRUP Classique (ancien format 8 chiffres)
     kamstrup_valid = kamstrup_classique & (~df_with_anomalies['Numéro de tête'].isin(['', 'nan']))
-    df_with_anomalies.loc[kamstrup_classique & (df_with_anomalies['Numéro de compteur'].str.len() != 8), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ 8 caractères / '
+    # Longueur du n° de compteur : gérée par appliquer_longueur_compteur (onglet 'Longueur_compteur')
     df_with_anomalies.loc[kamstrup_valid & (df_with_anomalies['Numéro de compteur'] != df_with_anomalies['Numéro de tête']), 'Anomalie'] += 'KAMSTRUP: Compteur ≠ Tête / '
     df_with_anomalies.loc[kamstrup_valid & (~df_with_anomalies['Numéro de compteur'].str.isdigit() | ~df_with_anomalies['Numéro de tête'].str.isdigit()), 'Anomalie'] += 'KAMSTRUP: Compteur ou Tête non numérique / '
     _diam_min, _diam_max = cfg.diametre_min_max('KAMSTRUP')
@@ -719,6 +804,13 @@ def check_data_tele(df):
     )
     df_with_anomalies.loc[u_kamstrup_tete_ko, 'Anomalie'] += 'U Kamstrup: Tête ≠ 8 chiffres / '
 
+    # Longueur du n° de compteur (non-FP2E) selon Mode/Marque/Année (configurable)
+    appliquer_longueur_compteur(df_with_anomalies, 'Tele', cfg, annee_fabrication_num)
+
+    # Format FP2E requis selon l'onglet 'Compteurs_FP2E'
+    appliquer_format_fp2e(df_with_anomalies, 'Tele', cfg, annee_fabrication_num,
+                          is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
+
     # Longueurs de tête selon Mode/Marque/Type Compteur (configurable)
     # Couvre SAPPEL (16, ou 15 pour SEN3) et ITRON (8).
     appliquer_longueur_tete(df_with_anomalies, 'Tele', cfg)
@@ -741,12 +833,10 @@ def check_data_tele(df):
     kamstrup_fp2e_check = kamstrup_fp2e & has_fp2e_format
     u_kamstrup_fp2e_check = is_u_kamstrup & has_fp2e_format
     fp2e_condition = ((is_sappel | is_itron) & (~is_mode_manuelle)) | (is_mode_manuelle & has_fp2e_format) | kamstrup_fp2e_check | u_kamstrup_fp2e_check
-    # On applique le contrôle même quand le format n'est PAS FP2E : c'est ce qui
-    # permet de signaler « Format de compteur non FP2E » (compteur SAPPEL/ITRON
-    # corrompu). On exclut les compteurs FP2E+suffixe valides (Traité spécial),
-    # traités par le bloc suffixe ci-dessous, pour ne pas les signaler à tort.
-    fp2e_std_condition = fp2e_condition & (~(is_traite_special & has_fp2e_suffix_format))
-    fp2e_results = df_with_anomalies[fp2e_std_condition].apply(check_fp2e_details_tele, axis=1)
+    # Contrôles dérivés (année/diamètre) sur les compteurs réellement FP2E.
+    # Le signalement « Format de compteur non FP2E » est géré séparément par
+    # appliquer_format_fp2e (onglet 'Compteurs_FP2E').
+    fp2e_results = df_with_anomalies[fp2e_condition & has_fp2e_format].apply(check_fp2e_details_tele, axis=1)
 
     for index, result in fp2e_results.items():
         anomalies, corrections = result
@@ -879,10 +969,10 @@ def check_data_manuelle(df):
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_REGEX, na=False)
     has_fp2e_suffix_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
 
-    # FP2E attendu pour SAPPEL/ITRON
-    # Si Traité = 965/455/899 et format FP2E+suffixe, c'est OK, sinon on exige FP2E standard
-    condition_fp2e_ok = has_fp2e_format | (is_traite_special & has_fp2e_suffix_format)
-    df_with_anomalies.loc[(is_sappel | is_itron) & (~condition_fp2e_ok), 'Anomalie'] += 'Compteur non-FP2E pour SAPPEL/ITRON / '
+    # Format FP2E requis selon l'onglet 'Compteurs_FP2E'
+    annee_fabrication_num = pd.to_numeric(df_with_anomalies['Année de fabrication'], errors='coerce')
+    appliquer_format_fp2e(df_with_anomalies, 'Manuelle', cfg, annee_fabrication_num,
+                          is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
 
     # Cohérences Marque vs préfixes (C/H/I/D) - format FP2E standard
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C')
@@ -956,6 +1046,26 @@ def check_data_manuelle(df):
     return anomalies_df, anomaly_counter
 
 
+def _inferer_correction_col(anomaly_type):
+    """Déduit la colonne de correction associée à un libellé d'anomalie (repli
+    lorsque le libellé n'est pas dans la table exacte, ex. libellés dynamiques
+    'MARQUE: Protocole ≠ XXX')."""
+    a = str(anomaly_type).lower()
+    if 'protocole' in a:
+        return 'Correction Protocole Radio'
+    if 'type compteur' in a:
+        return 'Correction Type Compteur'
+    if 'marque/compteur' in a:
+        return 'Correction Marque'
+    if 'millésime' in a or 'millesime' in a or 'année' in a or 'annee' in a:
+        return 'Correction Année'
+    if 'diamètre' in a or 'diametre' in a:
+        return 'Correction Diamètre'
+    if 'tête manquant' in a or 'tete manquant' in a:
+        return 'Correction Numéro de Tête'
+    return None
+
+
 def create_summary_with_corrections(anomalies_df, anomaly_counter, tab_type="radio"):
     """
     Construit un récap des anomalies avec le nombre de corrections proposées
@@ -1000,9 +1110,9 @@ def create_summary_with_corrections(anomalies_df, anomaly_counter, tab_type="rad
 
     # Alimente le récap : (type, occurrences, nb_lignes_avec_correction_proposée)
     for anomaly_type, count in anomaly_counter.items():
-        correction_col = correction_map.get(anomaly_type)
+        correction_col = correction_map.get(anomaly_type) or _inferer_correction_col(anomaly_type)
         corrections_count = 0
-        if correction_col:
+        if correction_col and correction_col in anomalies_df.columns:
             mask = anomalies_df['Anomalie'].str.contains(re.escape(anomaly_type), na=False) & (anomalies_df[correction_col] != '')
             corrections_count = anomalies_df[mask].shape[0]
         summary_data.append([anomaly_type, count, corrections_count])
