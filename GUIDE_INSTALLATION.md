@@ -114,7 +114,7 @@ sans aucune connaissance en programmation.
 |---|---|---|
 | **Marques_autorisees** | Marques acceptées par mode | Ligne `Tele` / `DIEHL` |
 | **Type_Compteur_autorises** | Codes Type Compteur acceptés (tous modes) | Ligne `ZZ99` |
-| **Traites_LRA_tele** | Préfixes de Traité en LRA (télé), le reste en SGX | Ligne `777` |
+| **ProtocoleRadio_commune** | Protocole Radio attendu par commune (télé) | `Paris` / `LRA` |
 | **Plage_diametre** | Diamètre min/max autorisé par marque | `KAMSTRUP` / `15` / `80` |
 | **Longueur_tete** | Longueur de tête attendue selon Mode/Marque/Type | `Radio` / `KAMSTRUP` / `KM21` / `10` |
 | **Diametre_FP2E** | Diamètre(s) correspondant à chaque lettre FP2E | `G` / `60` et `G` / `65` (2 lignes) |
@@ -126,6 +126,14 @@ précis est **prioritaire** sur la règle générale.
 Pour l'onglet **Diametre_FP2E**, mettez **une ligne par (Lettre, Diamètre)**. Une
 lettre qui accepte plusieurs diamètres a plusieurs lignes (ex. `G` → 60 et `G` →
 65). Le premier diamètre listé pour une lettre sert de correction proposée.
+
+Pour l'onglet **ProtocoleRadio_commune**, mettez **une ligne par (Commune,
+Protocole Radio)**. En télérelève, le protocole de chaque ligne doit correspondre
+à celui de sa commune ; sinon l'anomalie *« Protocole incorrect (devrait
+respecter la commune) »* est signalée avec la correction proposée. La comparaison
+**ignore la casse et les accents** (`Saint-Étienne` = `SAINT ETIENNE`). Une commune
+**absente** de ce tableau est signalée *« Commune inconnue (protocole non
+vérifié) »*.
 
 ### Sécurité
 
