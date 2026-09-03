@@ -27,8 +27,8 @@ ANOMALY_COLUMNS_MAP_UNION = {
     "KAMSTRUP: Protocole ≠ WMS": ["Protocole Radio"],
     "SAPPEL: Protocole ≠ OMS (année > 22)": ["Protocole Radio"],
     "SAPPEL: Protocole ≠ WMS (année <= 22)": ["Protocole Radio"],
-    "Protocole incorrect (devrait être LRA)": ["Protocole Radio"],
-    "Protocole incorrect (devrait être SGX)": ["Protocole Radio"],
+    "Protocole incorrect (devrait respecter la commune)": ["Protocole Radio"],
+    "Commune inconnue (protocole non vérifié)": ["Commune"],
     # Champs manquants / GPS
     "Marque manquante": ["Marque"],
     "Marque non autorisée en radiorelève": ["Marque"],

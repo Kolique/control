@@ -95,6 +95,8 @@ def colonnes_surlignage_defaut(libelle):
         cols.append('Type Compteur')
     if 'gps' in l or 'coordonnées' in l or 'coordonnees' in l:
         cols += ['Latitude', 'Longitude']
+    if 'commune' in l:
+        cols.append('Commune')
     if 'année' in l or 'annee' in l or 'millésime' in l or 'millesime' in l:
         cols.append('Année de fabrication')
     if 'compteur' in l and 'type compteur' not in l:
@@ -532,7 +534,7 @@ def check_data_tele(df):
     Règles onglet 'Télé' :
       - Marque autorisée (liste blanche : INTEGRA, ITRON, KAIFA, KAMSTRUP,
         SAPPEL (C)/(H), SENSUS, SOCAM, U Kamstrup),
-      - Protocole selon préfixe Traité (312/455/863/895/903/956 => LRA, sinon SGX) si non manuelle,
+      - Protocole selon la commune (onglet Excel 'ProtocoleRadio_commune') si non manuelle,
       - Présence champs clés, coordonnées valides,
       - KAMSTRUP / SAPPEL / ITRON : longueurs de tête, cohérences,
       - Déduction Type Compteur,
@@ -563,7 +565,7 @@ def check_data_tele(df):
     required_columns = [
         'Protocole Radio', 'Marque', 'Numéro de compteur', 'Numéro de tête',
         'Latitude', 'Longitude', 'Année de fabrication', 'Diametre', 'Traité',
-        'Mode de relève', 'Type Compteur'
+        'Mode de relève', 'Type Compteur', 'Commune'
     ]
     if not all(col in df_with_anomalies.columns for col in required_columns):
         missing = [col for col in required_columns if col not in df_with_anomalies.columns]
@@ -594,16 +596,28 @@ def check_data_tele(df):
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_REGEX, na=False)
     has_fp2e_suffix_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
 
-    # Protocole attendu (non manuelle) — préfixes LRA configurables ; le reste en SGX
+    # Protocole attendu (non manuelle) selon la COMMUNE.
+    # La correspondance Commune -> Protocole Radio est lue dans la configuration
+    # Excel (onglet 'ProtocoleRadio_commune'). Le protocole de la ligne doit
+    # correspondre à celui de sa commune ; sinon anomalie + correction proposée.
+    # Une commune absente de la table (ou vide) est signalée : protocole non vérifié.
     cfg = regles_config.get_config()
-    traite_lra_condition = df_with_anomalies['Traité'].str.startswith(cfg.traites_lra_tuple(), na=False)
-    protocole_incorrect_lra = (~is_mode_manuelle) & traite_lra_condition & (df_with_anomalies['Protocole Radio'].str.upper() != 'LRA')
-    df_with_anomalies.loc[protocole_incorrect_lra, 'Anomalie'] += 'Protocole incorrect (devrait être LRA) / '
-    df_with_anomalies.loc[protocole_incorrect_lra, 'Correction Protocole Radio'] = 'LRA'
+    commune_norm = df_with_anomalies['Commune'].apply(regles_config.normaliser_commune)
+    protocole_attendu = commune_norm.map(cfg.protocole_commune)  # NaN si commune absente
+    protocole_actuel = df_with_anomalies['Protocole Radio'].str.upper().str.strip()
 
-    protocole_incorrect_sgx = (~is_mode_manuelle) & (~traite_lra_condition) & (df_with_anomalies['Protocole Radio'].str.upper() != 'SGX')
-    df_with_anomalies.loc[protocole_incorrect_sgx, 'Anomalie'] += 'Protocole incorrect (devrait être SGX) / '
-    df_with_anomalies.loc[protocole_incorrect_sgx, 'Correction Protocole Radio'] = 'SGX'
+    # Commune non résolue (vide ou absente de la table) => protocole non vérifié
+    commune_inconnue = (~is_mode_manuelle) & protocole_attendu.isna()
+    df_with_anomalies.loc[commune_inconnue, 'Anomalie'] += 'Commune inconnue (protocole non vérifié) / '
+
+    # Commune connue mais protocole différent => anomalie + correction
+    protocole_incorrect = (
+        (~is_mode_manuelle)
+        & protocole_attendu.notna()
+        & (protocole_actuel != protocole_attendu.astype(str).str.upper().str.strip())
+    )
+    df_with_anomalies.loc[protocole_incorrect, 'Anomalie'] += 'Protocole incorrect (devrait respecter la commune) / '
+    df_with_anomalies.loc[protocole_incorrect, 'Correction Protocole Radio'] = protocole_attendu[protocole_incorrect]
 
     # Manques / GPS
     df_with_anomalies.loc[df_with_anomalies['Marque'].isin(['', 'nan']), 'Anomalie'] += 'Marque manquante / '
@@ -945,8 +959,7 @@ def create_summary_with_corrections(anomalies_df, anomaly_counter, tab_type="rad
             'Incohérence Type Compteur': 'Correction Type Compteur',
             'SAPPEL: Incohérence Marque/Compteur (C)': 'Correction Marque',
             'SAPPEL: Incohérence Marque/Compteur (H)': 'Correction Marque',
-            'Protocole incorrect (devrait être LRA)': 'Correction Protocole Radio',
-            'Protocole incorrect (devrait être SGX)': 'Correction Protocole Radio',
+            'Protocole incorrect (devrait respecter la commune)': 'Correction Protocole Radio',
         }
     elif tab_type == "manuelle":
         correction_map = {
@@ -1019,8 +1032,8 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
         }
     elif tab_type == "tele":
         anomaly_columns_map = {
-            "Protocole incorrect (devrait être LRA)": ['Protocole Radio'],
-            "Protocole incorrect (devrait être SGX)": ['Protocole Radio'],
+            "Protocole incorrect (devrait respecter la commune)": ['Protocole Radio'],
+            "Commune inconnue (protocole non vérifié)": ['Commune'],
             "Marque manquante": ['Marque'],
             "Marque non autorisée en télérelève": ['Marque'],
             "Numéro de compteur manquant": ['Numéro de compteur'],

@@ -17,7 +17,9 @@ Fonctionnement :
 """
 
 import os
+import re
 import sys
+import unicodedata
 
 import pandas as pd
 
@@ -40,9 +42,11 @@ DEFAUT_TYPES_COMPTEUR = [
     "MAG3", "MAG6", "MAG8", "RTKD", "SEN3", "SEN4", "UH", "UJ", "UK", "YR",
 ]
 
-# Préfixes de Traité qui imposent le protocole LRA en télérelève
-# (tous les autres attendent SGX).
-DEFAUT_TRAITES_LRA = ["312", "455", "863", "895", "903", "956"]
+# Protocole Radio attendu selon la COMMUNE (télérelève).
+# Correspondance {commune -> protocole}. Vide par défaut : la table réelle est
+# lue depuis l'onglet Excel 'ProtocoleRadio_commune'. Une commune absente de la
+# table est signalée (protocole non vérifié).
+DEFAUT_PROTOCOLE_COMMUNE = {}
 
 # Plage de diamètre autorisée par marque (compteurs classiques).
 # Ne s'applique PAS à « U Kamstrup » (compteurs FP2E), seulement à « KAMSTRUP ».
@@ -86,6 +90,20 @@ def _norm(valeur) -> str:
     return "" if s == "NAN" else s
 
 
+def normaliser_commune(valeur) -> str:
+    """Normalise un nom de commune pour comparaison robuste :
+    MAJUSCULES, sans accents, sans espaces ni ponctuation.
+    Ex. 'Saint-Étienne', 'SAINT ETIENNE', 'saint etienne' -> 'SAINTETIENNE'.
+    """
+    s = "" if valeur is None else str(valeur)
+    s = s.strip().upper()
+    if s in ("", "NAN"):
+        return ""
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return re.sub(r"[^A-Z0-9]", "", s)
+
+
 def _norm_mode(valeur) -> str:
     """Ramène un libellé de mode à 'Radio', 'Tele' ou 'Manuelle'."""
     s = _norm(valeur)
@@ -126,7 +144,8 @@ class ReglesConfig:
         # Valeurs (initialisées aux défauts, écrasées par le fichier si OK)
         self.marques = {k: list(v) for k, v in DEFAUT_MARQUES.items()}
         self.types_valides = list(DEFAUT_TYPES_COMPTEUR)
-        self.traites_lra = list(DEFAUT_TRAITES_LRA)
+        # {commune_normalisée: protocole_attendu}
+        self.protocole_commune = dict(DEFAUT_PROTOCOLE_COMMUNE)
         self.plage_diametre = dict(DEFAUT_PLAGE_DIAMETRE)
         self.longueur_tete = list(DEFAUT_LONGUEUR_TETE)
         # Dict prêt à l'emploi {LETTRE: [diamètres]} (utilisé par les règles FP2E)
@@ -140,8 +159,9 @@ class ReglesConfig:
     def types_valides_norm(self) -> set:
         return {_norm(t) for t in self.types_valides}
 
-    def traites_lra_tuple(self) -> tuple:
-        return tuple(str(p).strip() for p in self.traites_lra if str(p).strip())
+    def protocole_pour_commune(self, commune):
+        """Protocole Radio attendu pour une commune (None si absente de la table)."""
+        return self.protocole_commune.get(normaliser_commune(commune))
 
     def diametre_min_max(self, marque: str, defaut=(15, 400)) -> tuple:
         return self.plage_diametre.get(_norm(marque), defaut)
@@ -196,7 +216,7 @@ def charger_config(creer_si_absent: bool = True) -> ReglesConfig:
 
     _charger_marques(cfg, feuilles)
     _charger_types(cfg, feuilles)
-    _charger_lra(cfg, feuilles)
+    _charger_protocole_commune(cfg, feuilles)
     _charger_diametre(cfg, feuilles)
     _charger_tete(cfg, feuilles)
     _charger_diametre_fp2e(cfg, feuilles)
@@ -239,14 +259,33 @@ def _charger_types(cfg, feuilles):
         cfg.types_valides = vals
 
 
-def _charger_lra(cfg, feuilles):
-    df = _feuille(feuilles, "Traites_LRA_tele")
-    if df is None or "Prefixe Traite" not in df.columns:
-        cfg.avertissements.append("Onglet 'Traites_LRA_tele' absent/incomplet : défaut utilisé.")
+def _charger_protocole_commune(cfg, feuilles):
+    df = _feuille(feuilles, "ProtocoleRadio_commune")
+    if df is None:
+        cfg.avertissements.append(
+            "Onglet 'ProtocoleRadio_commune' absent : protocole par commune non vérifié (télé)."
+        )
         return
-    vals = [str(v).strip() for v in df["Prefixe Traite"] if not pd.isna(v) and str(v).strip()]
-    if vals:
-        cfg.traites_lra = vals
+    # Repérage tolérant des colonnes (casse/espaces).
+    col_commune = col_proto = None
+    for c in df.columns:
+        cl = str(c).strip().lower()
+        if cl == "commune":
+            col_commune = c
+        elif cl in ("protocole radio", "protocole"):
+            col_proto = c
+    if col_commune is None or col_proto is None:
+        cfg.avertissements.append(
+            "Onglet 'ProtocoleRadio_commune' incomplet : colonnes 'Commune' et 'Protocole Radio' attendues."
+        )
+        return
+    res = {}
+    for _, row in df.iterrows():
+        commune = normaliser_commune(row.get(col_commune))
+        proto = ("" if pd.isna(row.get(col_proto)) else str(row.get(col_proto))).strip()
+        if commune and proto:
+            res[commune] = proto
+    cfg.protocole_commune = res
 
 
 def _charger_diametre(cfg, feuilles):
@@ -320,7 +359,7 @@ NOTICE = [
     ["Onglets :"],
     ["  • Marques_autorisees   : marques acceptées par mode (Radio / Tele)."],
     ["  • Type_Compteur_autorises : codes Type Compteur acceptés (tous modes)."],
-    ["  • Traites_LRA_tele      : préfixes de Traité en LRA (télé). Le reste = SGX."],
+    ["  • ProtocoleRadio_commune : protocole Radio attendu par commune (télé)."],
     ["  • Plage_diametre        : diamètre min/max autorisé par marque."],
     ["  • Longueur_tete         : longueur de tête attendue selon Mode/Marque/Type."],
     ["  • Diametre_FP2E         : diamètre(s) correspondant à chaque lettre FP2E."],
@@ -333,6 +372,10 @@ NOTICE = [
     ["  - Onglet Diametre_FP2E : une ligne par (Lettre, Diametre). Une lettre qui"],
     ["    accepte plusieurs diamètres a plusieurs lignes (ex. G -> 60 et G -> 65)."],
     ["    Le 1er diamètre listé pour une lettre sert de correction proposée."],
+    ["  - Onglet ProtocoleRadio_commune : une ligne par (Commune, Protocole Radio)."],
+    ["    En télérelève, le protocole de chaque ligne doit correspondre à celui de"],
+    ["    sa commune. La comparaison ignore la casse et les accents. Une commune"],
+    ["    absente de ce tableau est signalée (protocole non vérifié)."],
     ["  - Ne renommez PAS les onglets ni les colonnes (en-têtes)."],
     ["  - En cas d'erreur de saisie, l'application ignore la partie concernée et"],
     ["    utilise les valeurs par défaut (elle ne plante pas)."],
@@ -352,7 +395,10 @@ def creer_fichier_defaut(chemin: str = None):
         columns=["Mode", "Marque"],
     )
     df_types = pd.DataFrame({"Type Compteur": DEFAUT_TYPES_COMPTEUR})
-    df_lra = pd.DataFrame({"Prefixe Traite": DEFAUT_TRAITES_LRA})
+    df_proto_commune = pd.DataFrame(
+        list(DEFAUT_PROTOCOLE_COMMUNE.items()),
+        columns=["Commune", "Protocole Radio"],
+    )
     df_diam = pd.DataFrame(
         [(m, mn, mx) for m, (mn, mx) in DEFAUT_PLAGE_DIAMETRE.items()],
         columns=["Marque", "Min", "Max"],
@@ -369,7 +415,7 @@ def creer_fichier_defaut(chemin: str = None):
         df_notice.to_excel(writer, sheet_name="Notice", index=False, header=False)
         df_marques.to_excel(writer, sheet_name="Marques_autorisees", index=False)
         df_types.to_excel(writer, sheet_name="Type_Compteur_autorises", index=False)
-        df_lra.to_excel(writer, sheet_name="Traites_LRA_tele", index=False)
+        df_proto_commune.to_excel(writer, sheet_name="ProtocoleRadio_commune", index=False)
         df_diam.to_excel(writer, sheet_name="Plage_diametre", index=False)
         df_tete.to_excel(writer, sheet_name="Longueur_tete", index=False)
         df_diam_fp2e.to_excel(writer, sheet_name="Diametre_FP2E", index=False)
