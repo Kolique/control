@@ -266,25 +266,43 @@ def _charger_protocole_commune(cfg, feuilles):
             "Onglet 'ProtocoleRadio_commune' absent : protocole par commune non vérifié (télé)."
         )
         return
-    # Repérage tolérant des colonnes (casse/espaces).
+    # Repérage tolérant des colonnes (casse/espaces). La clé commune peut être
+    # nommée 'Commune' ou 'Étiquettes de lignes' (export tableau croisé Excel).
     col_commune = col_proto = None
     for c in df.columns:
         cl = str(c).strip().lower()
-        if cl == "commune":
+        if cl in ("commune", "étiquettes de lignes", "etiquettes de lignes"):
             col_commune = c
         elif cl in ("protocole radio", "protocole"):
             col_proto = c
     if col_commune is None or col_proto is None:
         cfg.avertissements.append(
-            "Onglet 'ProtocoleRadio_commune' incomplet : colonnes 'Commune' et 'Protocole Radio' attendues."
+            "Onglet 'ProtocoleRadio_commune' incomplet : colonnes 'Commune' "
+            "(ou 'Étiquettes de lignes') et 'Protocole Radio' attendues."
         )
         return
     res = {}
+    noms = {}  # nom seul -> {protocoles} : sert à détecter les homonymes ambigus
     for _, row in df.iterrows():
-        commune = normaliser_commune(row.get(col_commune))
+        brut = "" if pd.isna(row.get(col_commune)) else str(row.get(col_commune)).strip()
         proto = ("" if pd.isna(row.get(col_proto)) else str(row.get(col_proto))).strip()
-        if commune and proto:
-            res[commune] = proto
+        if not brut or not proto:
+            continue
+        # Clé principale = libellé complet normalisé (ex. '064001-LUZINAY').
+        cle = normaliser_commune(brut)
+        if cle:
+            res[cle] = proto
+        # Clé secondaire = nom seul (après le 1er tiret : 'CODE-NOM' -> 'NOM'),
+        # pour tolérer une colonne Commune sans le code côté données.
+        if "-" in brut:
+            nom = normaliser_commune(brut.split("-", 1)[1])
+            if nom:
+                noms.setdefault(nom, set()).add(proto)
+    # N'ajoute un nom seul que s'il est NON ambigu (un seul protocole) et ne
+    # masque pas une clé complète existante.
+    for nom, protos in noms.items():
+        if len(protos) == 1 and nom not in res:
+            res[nom] = next(iter(protos))
     cfg.protocole_commune = res
 
 
