@@ -55,6 +55,28 @@ def appliquer_longueur_tete(df_with_anomalies, mode, cfg):
     df_with_anomalies.loc[mauvais, 'Anomalie'] += message[mauvais] + ' / '
 
 
+def appliquer_coherence_type_compteur(df_with_anomalies):
+    """Cohérence du Type Compteur avec le numéro de compteur.
+
+    Pour tout compteur au format FP2E, le Type Compteur doit valoir le
+    1er + 4e caractère du numéro (ex. C22FL123456 -> 'CF'). Ne concerne que
+    les types à 2 lettres : les codes 'module' (SEN3, SEN4, KM21, MAG1...)
+    ne suivent pas cette logique et sont donc exemptés. Toutes marques.
+    """
+    compteur = df_with_anomalies['Numéro de compteur'].astype(str)
+    has_fp2e = compteur.str.match(FP2E_REGEX, na=False)
+    type_2l = df_with_anomalies['Type Compteur'].astype(str).str.match(r'^[A-Za-z]{2}$', na=False)
+    condition = has_fp2e & type_2l
+    if not condition.any():
+        return
+    sel = df_with_anomalies[condition]
+    correct = (sel['Numéro de compteur'].str[0] + sel['Numéro de compteur'].str[3]).str.upper()
+    mauvais = sel['Type Compteur'].astype(str).str.upper() != correct
+    idx = sel[mauvais].index
+    df_with_anomalies.loc[idx, 'Anomalie'] += 'Incohérence Type Compteur / '
+    df_with_anomalies.loc[idx, 'Correction Type Compteur'] = correct[mauvais]
+
+
 def colonnes_surlignage_defaut(libelle):
     """Déduit, à partir des mots-clés du libellé d'anomalie, les colonnes à
     surligner. Sert de repli lorsqu'un libellé n'est pas dans la table exacte
@@ -325,6 +347,7 @@ def check_data_radio(df):
     # Type Compteur autorisé (liste blanche configurable)
     type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
     type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
+    df_with_anomalies.loc[~type_compteur_renseigne, 'Anomalie'] += 'Type Compteur manquant / '
     df_with_anomalies.loc[
         type_compteur_renseigne & (~type_compteur_norm.isin(cfg.types_valides_norm())),
         'Anomalie'
@@ -432,37 +455,8 @@ def check_data_radio(df):
         'Anomalie'
     ] += 'ITRON: Compteur ne commence pas par I ou D / '
 
-    # Déduction du 'Type Compteur' attendu via 1er et 4e char du n°
-    # Ne s'applique qu'aux anciens codes à 2 lettres (CF, HL, IB...) ; les codes
-    # comme SEN3, SEN4, KM21, MAG1... ne suivent pas cette logique et sont ignorés.
-    is_brand_ok = is_sappel | is_itron
-    is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
-    starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha()
-    fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
-    type_est_2_lettres = df_with_anomalies['Type Compteur'].astype(str).str.match(r'^[A-Za-z]{2}$', na=False)
-    condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter & type_est_2_lettres
-
-    rows_to_check = df_with_anomalies[condition_type_compteur].copy()
-    if not rows_to_check.empty:
-        # SAPPEL : type = (c0 + c3)
-        sappel_rows = rows_to_check[rows_to_check['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)'])]
-        if not sappel_rows.empty:
-            correct_type_sappel = sappel_rows['Numéro de compteur'].str[0] + sappel_rows['Numéro de compteur'].str[3]
-            incorrect_mask_sappel = sappel_rows['Type Compteur'] != correct_type_sappel
-            incorrect_indices_sappel = sappel_rows[incorrect_mask_sappel].index
-            if not incorrect_indices_sappel.empty:
-                df_with_anomalies.loc[incorrect_indices_sappel, 'Anomalie'] += 'Incohérence Type Compteur / '
-                df_with_anomalies.loc[incorrect_indices_sappel, 'Correction Type Compteur'] = correct_type_sappel[incorrect_mask_sappel]
-
-        # ITRON : type = 'I' + c3
-        itron_rows = rows_to_check[rows_to_check['Marque'].str.upper() == 'ITRON']
-        if not itron_rows.empty:
-            correct_type_itron = 'I' + itron_rows['Numéro de compteur'].str[3]
-            incorrect_mask_itron = itron_rows['Type Compteur'] != correct_type_itron
-            incorrect_indices_itron = itron_rows[incorrect_mask_itron].index
-            if not incorrect_indices_itron.empty:
-                df_with_anomalies.loc[incorrect_indices_itron, 'Anomalie'] += 'Incohérence Type Compteur / '
-                df_with_anomalies.loc[incorrect_indices_itron, 'Correction Type Compteur'] = correct_type_itron[incorrect_mask_itron]
+    # Cohérence du Type Compteur (1er + 4e char du n°) pour les compteurs FP2E
+    appliquer_coherence_type_compteur(df_with_anomalies)
 
     # Détermine où appliquer la vérif FP2E détaillée
     # Radio non-manuelle SAPPEL / Manuel si format FP2E / KAMSTRUP FP2E
@@ -629,6 +623,7 @@ def check_data_tele(df):
     # Type Compteur autorisé (liste blanche configurable)
     type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
     type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
+    df_with_anomalies.loc[~type_compteur_renseigne, 'Anomalie'] += 'Type Compteur manquant / '
     df_with_anomalies.loc[
         type_compteur_renseigne & (~type_compteur_norm.isin(cfg.types_valides_norm())),
         'Anomalie'
@@ -705,34 +700,8 @@ def check_data_tele(df):
     df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Anomalie'] += 'SAPPEL: Incohérence Marque/Compteur (H) / '
     df_with_anomalies.loc[is_sappel & compteur_starts_H & marque_not_sappel_H, 'Correction Marque'] = 'SAPPEL (H)'
 
-    # Déduction 'Type Compteur' (uniquement pour les anciens codes à 2 lettres ;
-    # SEN3, SEN4, KM21, MAG1... sont ignorés car ils ne suivent pas cette logique)
-    is_brand_ok = is_sappel | is_itron
-    is_len_ok = df_with_anomalies['Numéro de compteur'].str.len() == 11
-    starts_with_letter = df_with_anomalies['Numéro de compteur'].str[0].str.isalpha()
-    fourth_is_letter = df_with_anomalies['Numéro de compteur'].str[3].str.isalpha()
-    type_est_2_lettres = df_with_anomalies['Type Compteur'].astype(str).str.match(r'^[A-Za-z]{2}$', na=False)
-    condition_type_compteur = is_brand_ok & is_len_ok & starts_with_letter & fourth_is_letter & type_est_2_lettres
-
-    rows_to_check = df_with_anomalies[condition_type_compteur].copy()
-    if not rows_to_check.empty:
-        sappel_rows = rows_to_check[rows_to_check['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)', 'SAPPEL(C)'])]
-        if not sappel_rows.empty:
-            correct_type_sappel = sappel_rows['Numéro de compteur'].str[0] + sappel_rows['Numéro de compteur'].str[3]
-            incorrect_mask_sappel = sappel_rows['Type Compteur'] != correct_type_sappel
-            incorrect_indices_sappel = sappel_rows[incorrect_mask_sappel].index
-            if not incorrect_indices_sappel.empty:
-                df_with_anomalies.loc[incorrect_indices_sappel, 'Anomalie'] += 'Incohérence Type Compteur / '
-                df_with_anomalies.loc[incorrect_indices_sappel, 'Correction Type Compteur'] = correct_type_sappel[incorrect_mask_sappel]
-
-        itron_rows = rows_to_check[rows_to_check['Marque'].str.upper() == 'ITRON']
-        if not itron_rows.empty:
-            correct_type_itron = 'I' + itron_rows['Numéro de compteur'].str[3]
-            incorrect_mask_itron = itron_rows['Type Compteur'] != correct_type_itron
-            incorrect_indices_itron = itron_rows[incorrect_mask_itron].index
-            if not incorrect_indices_itron.empty:
-                df_with_anomalies.loc[incorrect_indices_itron, 'Anomalie'] += 'Incohérence Type Compteur / '
-                df_with_anomalies.loc[incorrect_indices_itron, 'Correction Type Compteur'] = correct_type_itron[incorrect_mask_itron]
+    # Cohérence du Type Compteur (1er + 4e char du n°) pour les compteurs FP2E
+    appliquer_coherence_type_compteur(df_with_anomalies)
 
     # Contrôles FP2E (zone télé) - Standard (y compris KAMSTRUP FP2E)
     kamstrup_fp2e_check = kamstrup_fp2e & has_fp2e_format
@@ -857,6 +826,7 @@ def check_data_manuelle(df):
     cfg = regles_config.get_config()
     type_compteur_norm = df_with_anomalies['Type Compteur'].astype(str).str.upper().str.replace(' ', '', regex=False)
     type_compteur_renseigne = ~type_compteur_norm.isin(['', 'NAN'])
+    df_with_anomalies.loc[~type_compteur_renseigne, 'Anomalie'] += 'Type Compteur manquant / '
     df_with_anomalies.loc[
         type_compteur_renseigne & (~type_compteur_norm.isin(cfg.types_valides_norm())),
         'Anomalie'
@@ -915,33 +885,8 @@ def check_data_manuelle(df):
         if 'diametre' in corrections:
             df_with_anomalies.loc[index, 'Correction Diamètre'] = corrections['diametre']
 
-    # Déduction 'Type Compteur' (SAPPEL : c0+c3 ; ITRON : I+c3)
-    # Uniquement pour les anciens codes à 2 lettres ; SEN3, SEN4, KM21... ignorés.
-    starts_with_key_letter = df_with_anomalies['Numéro de compteur'].str.startswith(('C', 'H', 'I', 'D'))
-    type_est_2_lettres = df_with_anomalies['Type Compteur'].astype(str).str.match(r'^[A-Za-z]{2}$', na=False)
-    condition_type_compteur = has_fp2e_format & starts_with_key_letter & type_est_2_lettres
-    rows_to_check = df_with_anomalies[condition_type_compteur].copy()
-
-    if not rows_to_check.empty:
-        sappel_mask = rows_to_check['Numéro de compteur'].str.startswith(('C', 'H'))
-        sappel_rows = rows_to_check[sappel_mask]
-        if not sappel_rows.empty:
-            correct_type_sappel = sappel_rows['Numéro de compteur'].str[0] + sappel_rows['Numéro de compteur'].str[3]
-            incorrect_mask_sappel = sappel_rows['Type Compteur'] != correct_type_sappel
-            incorrect_indices_sappel = sappel_rows[incorrect_mask_sappel].index
-            if not incorrect_indices_sappel.empty:
-                df_with_anomalies.loc[incorrect_indices_sappel, 'Anomalie'] += 'Incohérence Type Compteur / '
-                df_with_anomalies.loc[incorrect_indices_sappel, 'Correction Type Compteur'] = correct_type_sappel[incorrect_mask_sappel]
-
-        itron_mask = rows_to_check['Numéro de compteur'].str.startswith(('I', 'D'))
-        itron_rows = rows_to_check[itron_mask]
-        if not itron_rows.empty:
-            correct_type_itron = 'I' + itron_rows['Numéro de compteur'].str[3]
-            incorrect_mask_itron = itron_rows['Type Compteur'] != correct_type_itron
-            incorrect_indices_itron = itron_rows[incorrect_mask_itron].index
-            if not incorrect_indices_itron.empty:
-                df_with_anomalies.loc[incorrect_indices_itron, 'Anomalie'] += 'Incohérence Type Compteur / '
-                df_with_anomalies.loc[incorrect_indices_itron, 'Correction Type Compteur'] = correct_type_itron[incorrect_mask_itron]
+    # Cohérence du Type Compteur (1er + 4e char du n°) pour les compteurs FP2E
+    appliquer_coherence_type_compteur(df_with_anomalies)
 
     # Sortie anomalies
     df_with_anomalies['Anomalie'] = df_with_anomalies['Anomalie'].str.strip().str.rstrip(' /')
@@ -1070,6 +1015,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "L'année de millésime n'est pas conforme": ['Année de fabrication'],
             "Incohérence Type Compteur": ['Type Compteur'],
             "Type Compteur non autorisé": ['Type Compteur'],
+            "Type Compteur manquant": ['Type Compteur'],
         }
     elif tab_type == "tele":
         anomaly_columns_map = {
@@ -1102,6 +1048,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "Diamètre non conforme FP2E": ['Diametre'],
             "Incohérence Type Compteur": ['Type Compteur'],
             "Type Compteur non autorisé": ['Type Compteur'],
+            "Type Compteur manquant": ['Type Compteur'],
         }
     elif tab_type == "manuelle":
         anomaly_columns_map = {
@@ -1118,6 +1065,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "ITRON: Incohérence Marque/Compteur": ['Marque'],
             "Incohérence Type Compteur": ['Type Compteur'],
             "Type Compteur non autorisé": ['Type Compteur'],
+            "Type Compteur manquant": ['Type Compteur'],
         }
 
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
