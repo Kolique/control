@@ -270,6 +270,14 @@ def check_data_radio(df):
     if 'Type Compteur' not in df_with_anomalies.columns:
         raise ValueError("La colonne 'Type Compteur' est manquante dans votre fichier.")
 
+    # Année manquante : détectée AVANT normalisation. Une cellule vide/NaN
+    # deviendrait '00' après normalisation et passerait pour un 0 numérique
+    # (donc jamais signalée comme manquante).
+    annee_manquante = (
+        df_with_anomalies['Année de fabrication'].isna()
+        | df_with_anomalies['Année de fabrication'].astype(str).str.strip().isin(['', 'nan', 'NaN', 'None'])
+    )
+
     # Normalisation année (2 digits, zfill)
     df_with_anomalies['Année de fabrication'] = (
         df_with_anomalies['Année de fabrication']
@@ -334,7 +342,7 @@ def check_data_radio(df):
     df_with_anomalies.loc[df_with_anomalies['Marque'].isin(['', 'nan']), 'Anomalie'] += 'Marque manquante / '
     df_with_anomalies.loc[df_with_anomalies['Numéro de compteur'].isin(['', 'nan']), 'Anomalie'] += 'Numéro de compteur manquant / '
     df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '
-    df_with_anomalies.loc[annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
+    df_with_anomalies.loc[annee_manquante | annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
 
     # Marque autorisée en radiorelève (liste blanche configurable)
     cfg = regles_config.get_config()
@@ -554,6 +562,14 @@ def check_data_tele(df):
     if 'Type Compteur' not in df_with_anomalies.columns:
         raise ValueError("La colonne 'Type Compteur' est manquante dans votre fichier.")
 
+    # Année manquante : détectée AVANT normalisation. Une cellule vide/NaN
+    # deviendrait '00' après normalisation et passerait pour un 0 numérique
+    # (donc jamais signalée comme manquante).
+    annee_manquante = (
+        df_with_anomalies['Année de fabrication'].isna()
+        | df_with_anomalies['Année de fabrication'].astype(str).str.strip().isin(['', 'nan', 'NaN', 'None'])
+    )
+
     # Normalisation année
     df_with_anomalies['Année de fabrication'] = (
         df_with_anomalies['Année de fabrication']
@@ -623,7 +639,7 @@ def check_data_tele(df):
     df_with_anomalies.loc[df_with_anomalies['Marque'].isin(['', 'nan']), 'Anomalie'] += 'Marque manquante / '
     df_with_anomalies.loc[df_with_anomalies['Numéro de compteur'].isin(['', 'nan']), 'Anomalie'] += 'Numéro de compteur manquant / '
     df_with_anomalies.loc[df_with_anomalies['Diametre'].isnull(), 'Anomalie'] += 'Diamètre manquant / '
-    df_with_anomalies.loc[annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
+    df_with_anomalies.loc[annee_manquante | annee_fabrication_num.isnull(), 'Anomalie'] += 'Année de fabrication manquante / '
 
     # Marque autorisée en télérelève (liste blanche configurable)
     marques_autorisees_tele = cfg.marques_autorisees_norm('Tele')
@@ -721,7 +737,12 @@ def check_data_tele(df):
     kamstrup_fp2e_check = kamstrup_fp2e & has_fp2e_format
     u_kamstrup_fp2e_check = is_u_kamstrup & has_fp2e_format
     fp2e_condition = ((is_sappel | is_itron) & (~is_mode_manuelle)) | (is_mode_manuelle & has_fp2e_format) | kamstrup_fp2e_check | u_kamstrup_fp2e_check
-    fp2e_results = df_with_anomalies[fp2e_condition & has_fp2e_format].apply(check_fp2e_details_tele, axis=1)
+    # On applique le contrôle même quand le format n'est PAS FP2E : c'est ce qui
+    # permet de signaler « Format de compteur non FP2E » (compteur SAPPEL/ITRON
+    # corrompu). On exclut les compteurs FP2E+suffixe valides (Traité spécial),
+    # traités par le bloc suffixe ci-dessous, pour ne pas les signaler à tort.
+    fp2e_std_condition = fp2e_condition & (~(is_traite_special & has_fp2e_suffix_format))
+    fp2e_results = df_with_anomalies[fp2e_std_condition].apply(check_fp2e_details_tele, axis=1)
 
     for index, result in fp2e_results.items():
         anomalies, corrections = result
