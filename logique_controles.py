@@ -616,24 +616,28 @@ def check_data_tele(df):
     # La correspondance Commune -> Protocole Radio est lue dans la configuration
     # Excel (onglet 'ProtocoleRadio_commune'). Le protocole de la ligne doit
     # correspondre à celui de sa commune ; sinon anomalie + correction proposée.
-    # Une commune absente de la table (ou vide) est signalée : protocole non vérifié.
+    # Une commune absente d'une table renseignée est signalée : protocole non vérifié.
+    # Si la table est absente/vide (onglet manquant ou non rempli), le contrôle
+    # est DÉSACTIVÉ (on ne signale pas toutes les lignes) ; un avertissement de
+    # configuration est déjà remonté au chargement.
     cfg = regles_config.get_config()
-    commune_norm = df_with_anomalies['Commune'].apply(regles_config.normaliser_commune)
-    protocole_attendu = commune_norm.map(cfg.protocole_commune)  # NaN si commune absente
-    protocole_actuel = df_with_anomalies['Protocole Radio'].str.upper().str.strip()
+    if cfg.protocole_commune:
+        commune_norm = df_with_anomalies['Commune'].apply(regles_config.normaliser_commune)
+        protocole_attendu = commune_norm.map(cfg.protocole_commune)  # NaN si commune absente
+        protocole_actuel = df_with_anomalies['Protocole Radio'].str.upper().str.strip()
 
-    # Commune non résolue (vide ou absente de la table) => protocole non vérifié
-    commune_inconnue = (~is_mode_manuelle) & protocole_attendu.isna()
-    df_with_anomalies.loc[commune_inconnue, 'Anomalie'] += 'Commune inconnue (protocole non vérifié) / '
+        # Commune non résolue (vide ou absente de la table) => protocole non vérifié
+        commune_inconnue = (~is_mode_manuelle) & protocole_attendu.isna()
+        df_with_anomalies.loc[commune_inconnue, 'Anomalie'] += 'Commune inconnue (protocole non vérifié) / '
 
-    # Commune connue mais protocole différent => anomalie + correction
-    protocole_incorrect = (
-        (~is_mode_manuelle)
-        & protocole_attendu.notna()
-        & (protocole_actuel != protocole_attendu.astype(str).str.upper().str.strip())
-    )
-    df_with_anomalies.loc[protocole_incorrect, 'Anomalie'] += 'Protocole incorrect (devrait respecter la commune) / '
-    df_with_anomalies.loc[protocole_incorrect, 'Correction Protocole Radio'] = protocole_attendu[protocole_incorrect]
+        # Commune connue mais protocole différent => anomalie + correction
+        protocole_incorrect = (
+            (~is_mode_manuelle)
+            & protocole_attendu.notna()
+            & (protocole_actuel != protocole_attendu.astype(str).str.upper().str.strip())
+        )
+        df_with_anomalies.loc[protocole_incorrect, 'Anomalie'] += 'Protocole incorrect (devrait respecter la commune) / '
+        df_with_anomalies.loc[protocole_incorrect, 'Correction Protocole Radio'] = protocole_attendu[protocole_incorrect]
 
     # Manques / GPS
     df_with_anomalies.loc[df_with_anomalies['Marque'].isin(['', 'nan']), 'Anomalie'] += 'Marque manquante / '
