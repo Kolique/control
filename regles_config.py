@@ -60,6 +60,8 @@ DEFAUT_LONGUEUR_TETE = [
     ("Tele", "SAPPEL (H)", "", 16),
     ("Tele", "SAPPEL (C)", "SEN3", 15),
     ("Tele", "SAPPEL (H)", "SEN3", 15),
+    ("Tele", "SAPPEL (C)", "INT3", 15),
+    ("Tele", "SAPPEL (H)", "INT3", 15),
     ("Tele", "ITRON", "", 8),
 ]
 
