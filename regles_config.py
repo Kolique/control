@@ -74,7 +74,7 @@ DEFAUT_LONGUEUR_TETE = [
 # Le 1er diamètre de la liste sert de correction proposée par défaut.
 DEFAUT_DIAMETRE_FP2E = {
     "A": [15], "U": [15], "B": [20], "C": [25], "D": [30], "E": [40], "F": [50],
-    "G": [60, 65], "H": [80], "I": [100], "J": [125], "K": [150],
+    "G": [65, 60], "H": [80], "I": [100], "J": [125], "K": [150],
     "L": [200], "M": [250], "N": [300], "O": [350], "P": [400],
 }
 
@@ -528,7 +528,7 @@ NOTICE = [
     ["    à toutes les valeurs de la marque. Une ligne avec un Type précis est"],
     ["    prioritaire sur la ligne générale."],
     ["  - Onglet Diametre_FP2E : une ligne par (Lettre, Diametre). Une lettre qui"],
-    ["    accepte plusieurs diamètres a plusieurs lignes (ex. G -> 60 et G -> 65)."],
+    ["    accepte plusieurs diamètres a plusieurs lignes (ex. G -> 65 et G -> 60)."],
     ["    Le 1er diamètre listé pour une lettre sert de correction proposée."],
     ["  - Onglet ProtocoleRadio_commune : une ligne par (Commune, Protocole Radio)."],
     ["    En télérelève, le protocole de chaque ligne doit correspondre à celui de"],

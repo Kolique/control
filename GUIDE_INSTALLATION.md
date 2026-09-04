@@ -1,10 +1,10 @@
-# 📚 Guide d'installation - Corecto
+# 📚 Guide d'installation - Korrect'eau
 
 ## 🎯 Pour les utilisateurs (NON-TECHNIQUES)
 
 ### Option simple : Utiliser le fichier .exe
 
-1. **Télécharger** le fichier `Corecto.exe`
+1. **Télécharger** le fichier `Korrecteau.exe`
 2. **Double-cliquer** dessus pour lancer l'application
 3. **C'est tout !** Aucune installation nécessaire
 
@@ -38,14 +38,14 @@ L'interface graphique devrait s'ouvrir. Testez avec vos fichiers.
 python compiler_exe.py
 ```
 
-Cela va créer un dossier `dist/` contenant `Corecto.exe`
+Cela va créer un dossier `dist/` contenant `Korrecteau.exe`
 
 ---
 
 ## 📖 Guide d'utilisation
 
 ### 1️⃣ Lancer l'application
-- Double-cliquez sur `Corecto.exe`
+- Double-cliquez sur `Korrecteau.exe`
 
 ### 2️⃣ Sélectionner les fichiers
 Deux méthodes au choix :
@@ -117,7 +117,7 @@ sans aucune connaissance en programmation.
 | **ProtocoleRadio_commune** | Protocole Radio attendu par commune (télé) | `Paris` / `LRA` |
 | **Plage_diametre** | Diamètre min/max autorisé par marque | `KAMSTRUP` / `15` / `80` |
 | **Longueur_tete** | Longueur de tête attendue selon Mode/Marque/Type | `Radio` / `KAMSTRUP` / `KM21` / `10` |
-| **Diametre_FP2E** | Diamètre(s) correspondant à chaque lettre FP2E | `G` / `60` et `G` / `65` (2 lignes) |
+| **Diametre_FP2E** | Diamètre(s) correspondant à chaque lettre FP2E | `G` / `65` et `G` / `60` (2 lignes) |
 | **Longueur_compteur** | Longueur exacte du n° de compteur (non-FP2E) selon Mode/Marque/Année | `Tele` / `ITRON` / `` / `8` |
 | **Protocole_par_marque** | Protocole Radio attendu par marque/année (radiorelève) | `SAPPEL (C)` / `23` / `99` / `OMS` |
 | **Compteurs_FP2E** | Marques dont le compteur doit être au format FP2E | `ITRON` / `` / `` |
@@ -141,8 +141,8 @@ règle s'applique à **toutes** les valeurs de la marque. Une ligne avec un Type
 précis est **prioritaire** sur la règle générale.
 
 Pour l'onglet **Diametre_FP2E**, mettez **une ligne par (Lettre, Diamètre)**. Une
-lettre qui accepte plusieurs diamètres a plusieurs lignes (ex. `G` → 60 et `G` →
-65). Le premier diamètre listé pour une lettre sert de correction proposée.
+lettre qui accepte plusieurs diamètres a plusieurs lignes (ex. `G` → 65 et `G` →
+60). Le premier diamètre listé pour une lettre sert de correction proposée (donc 65 pour G).
 
 Pour l'onglet **ProtocoleRadio_commune**, mettez **une ligne par (Commune,
 Protocole Radio)**. En télérelève, le protocole de chaque ligne doit correspondre
@@ -209,7 +209,7 @@ Pour mettre à jour l'application :
    python compiler_exe.py
    ```
 
-3. Redistribuez le nouveau `Corecto.exe`
+3. Redistribuez le nouveau `Korrecteau.exe`
 
 ---
 

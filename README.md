@@ -1,4 +1,4 @@
-# 🚀 Corecto - Application Complète
+# 🚀 Korrect'eau - Application Complète
 
 ## 📦 Contenu du package
 
@@ -49,7 +49,7 @@ python compiler_exe.py
 ### Pour votre équipe (utilisateurs finaux) :
 
 ```
-1. Double-clic sur Corecto.exe
+1. Double-clic sur Korrecteau.exe
 2. Glisser-déposer les fichiers Excel
 3. Choisir le dossier de sortie
 4. Cliquer sur "ANALYSER"
