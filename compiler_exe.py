@@ -11,7 +11,7 @@ def compiler_en_exe():
     """Compile l'application en fichier .exe"""
     
     print("=" * 60)
-    print("🚀 Compilation de Corecto en .exe")
+    print("🚀 Compilation de Korrect'eau en .exe")
     print("=" * 60)
     print()
     
@@ -30,7 +30,7 @@ def compiler_en_exe():
         sys.executable, "-m", "PyInstaller",  
         "--onefile",                          # UN SEUL FICHIER .exe (portable !)
         "--windowed",                         # Mode fenêtre (pas de console)
-        "--name=Corecto",                    # Nom de l'exécutable
+        "--name=Korrecteau",                 # Nom de l'exécutable (Korrect'eau)
         "--icon=NONE",                        # Pas d'icône personnalisée
         "--add-data=logique_controles.py;.", # Inclure le module de logique
         "--add-data=main.py;.",              # Inclure main.py
@@ -77,7 +77,7 @@ def compiler_en_exe():
         print("=" * 60)
         print()
         print(f"📁 L'exécutable se trouve dans : {os.path.abspath('dist')}")
-        print(f"📝 Fichier : Corecto.exe")
+        print(f"📝 Fichier : Korrecteau.exe")
         print()
         print("🎉 FICHIER UNIQUE ET PORTABLE !")
         print("   ✅ Vous pouvez copier ce seul fichier .exe n'importe où")
