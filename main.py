@@ -33,6 +33,7 @@ ANOMALY_COLUMNS_MAP_UNION = {
     "Marque manquante": ["Marque"],
     "Marque non autorisée en radiorelève": ["Marque"],
     "Marque non autorisée en télérelève": ["Marque"],
+    "Marque non autorisée en manuelle": ["Marque"],
     "Numéro de compteur manquant": ["Numéro de compteur"],
     "Numéro de tête manquant": ["Numéro de tête"],
     "Coordonnées GPS non numériques": ["Latitude", "Longitude"],

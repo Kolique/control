@@ -33,6 +33,8 @@ DEFAUT_MARQUES = {
     "Radio": ["SAPPEL (H)", "SAPPEL (C)", "KAMSTRUP", "U Kamstrup"],
     "Tele": ["INTEGRA", "ITRON", "KAIFA", "KAMSTRUP", "SAPPEL (C)",
              "SAPPEL (H)", "SENSUS", "SOCAM", "U Kamstrup"],
+    "Manuelle": ["U KAMSTRUP", "INTEGRA", "SAPPEL (C)", "SENSUS", "SAPPEL (H)",
+                 "ITRON", "KAIFA", "KAMSTRUP", "KROHNE", "ZENNER"],
 }
 
 DEFAUT_TYPES_COMPTEUR = [
@@ -322,16 +324,15 @@ def _charger_marques(cfg, feuilles):
     if df is None or "Mode" not in df.columns or "Marque" not in df.columns:
         cfg.avertissements.append("Onglet 'Marques_autorisees' absent/incomplet : défaut utilisé.")
         return
-    res = {"Radio": [], "Tele": []}
+    res = {"Radio": [], "Tele": [], "Manuelle": []}
     for _, row in df.iterrows():
         mode = _norm_mode(row.get("Mode"))
         marque = ("" if pd.isna(row.get("Marque")) else str(row.get("Marque"))).strip()
         if mode in res and marque:
             res[mode].append(marque)
-    if res["Radio"] or res["Tele"]:
-        for mode in ("Radio", "Tele"):
-            if res[mode]:
-                cfg.marques[mode] = res[mode]
+    for mode in ("Radio", "Tele", "Manuelle"):
+        if res[mode]:
+            cfg.marques[mode] = res[mode]
 
 
 def _charger_types(cfg, feuilles):

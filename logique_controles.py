@@ -961,10 +961,21 @@ def check_data_manuelle(df):
         'Anomalie'
     ] += 'Type Compteur non autorisé / '
 
+    # Marque autorisée en manuelle (liste blanche configurable)
+    marques_autorisees_manuelle = cfg.marques_autorisees_norm('Manuelle')
+    if marques_autorisees_manuelle:
+        marque_str = df_with_anomalies['Marque'].astype(str).replace('nan', '', regex=False)
+        marque_norm_m = marque_str.str.upper().str.replace(' ', '', regex=False)
+        marque_renseignee_m = ~marque_str.isin(['', 'nan'])
+        df_with_anomalies.loc[
+            marque_renseignee_m & (~marque_norm_m.isin(marques_autorisees_manuelle)),
+            'Anomalie'
+        ] += 'Marque non autorisée en manuelle / '
+
     # Flags marques
     is_sappel = df_with_anomalies['Marque'].str.upper().isin(['SAPPEL (C)', 'SAPPEL (H)'])
     is_itron = df_with_anomalies['Marque'].str.upper() == 'ITRON'
-    
+
     # Format compteur
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_REGEX, na=False)
     has_fp2e_suffix_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
@@ -1202,6 +1213,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
         anomaly_columns_map = {
             "Coordonnées GPS non numériques": ['Latitude', 'Longitude'],
             "Coordonnées GPS invalides": ['Latitude', 'Longitude'],
+            "Marque non autorisée en manuelle": ['Marque'],
             "L'année de millésime n'est pas conforme": ['Année de fabrication'],
             "Le diamètre n'est pas conforme": ['Diametre'],
             "L'année de millésime n'est pas conforme (FP2E+suffixe)": ['Année de fabrication'],
