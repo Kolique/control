@@ -15,11 +15,21 @@ FP2E_WITH_SUFFIX_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}[A-Z]$'  # FP2E + 1 lettre fi
 FP2E_DIAM_MAP = {k: list(v) for k, v in regles_config.DEFAUT_DIAMETRE_FP2E.items()}
 
 
-# Marques dont le numéro de compteur DOIT respecter le format FP2E (règle codée
-# en dur, non configurable). Comparaison en MAJUSCULES sans espaces.
-# KAMSTRUP / U Kamstrup ne figurent PAS ici : ils ont leur propre contrôle de
-# format dans le code (le préfixe 'U' distingue le FP2E du classique).
-MARQUES_FP2E_OBLIGATOIRE = frozenset({'SAPPEL(C)', 'SAPPEL(H)', 'ITRON'})
+def presume_fp2e(compteur_series):
+    """Détecte les numéros de compteur *présumés* FP2E d'après leur signature
+    visuelle, indépendamment de la marque.
+
+    Règle : un numéro est présumé FP2E dès qu'il contient au moins 3 lettres
+    (un FP2E conforme en a exactement 3 : 1 + 2, cf. FP2E_REGEX), SAUF s'il
+    commence par 'DME' (têtes SAPPEL, qui relèvent d'une autre logique).
+
+    Sert à décider quels numéros doivent ensuite respecter le format FP2E :
+    un présumé-FP2E qui ne colle pas au motif strict est « non conforme ».
+    """
+    s = compteur_series.astype(str)
+    nb_lettres = s.str.count(r'[A-Za-z]')
+    commence_dme = s.str.upper().str.startswith('DME', na=False)
+    return (nb_lettres >= 3) & (~commence_dme)
 
 
 def _diam_map_fp2e():
@@ -163,15 +173,21 @@ def appliquer_commune_inconnue(df, cfg):
 def appliquer_format_fp2e(df, is_traite_special, has_fp2e_format, has_fp2e_suffix_format):
     """Signale « Format de compteur non FP2E ».
 
-    Pour les marques dont le compteur DOIT être au format FP2E
-    (MARQUES_FP2E_OBLIGATOIRE : SAPPEL (C)/(H), ITRON), un numéro renseigné qui
-    ne respecte pas la signature visuelle FP2E est signalé. Le format FP2E est
-    reconnu par son motif visuel (une lettre, 2 chiffres, 2 lettres, 6 chiffres),
-    éventuellement suivi d'une lettre finale pour les Traités spéciaux
-    (965/455/899). KAMSTRUP / U Kamstrup ont leur propre contrôle (préfixe 'U').
+    Détection par la signature visuelle (voir presume_fp2e) : tout numéro
+    présumé FP2E (au moins 3 lettres, hors préfixe 'DME'), toutes marques
+    confondues, doit respecter le motif strict FP2E — une lettre, 2 chiffres,
+    2 lettres, 6 chiffres (11 caractères), éventuellement suivi d'une lettre
+    finale pour les Traités spéciaux (965/455/899). Sinon il est signalé.
+
+    Ainsi un numéro « qui a tout d'un FP2E mais 7 chiffres », une longueur
+    incorrecte, etc., ressort comme non conforme. KAMSTRUP / U Kamstrup sont
+    exclus : ils ont leur propre contrôle de format (préfixe 'U').
     """
     marque_norm = df['Marque'].str.upper().str.replace(' ', '', regex=False)
-    doit = marque_norm.isin(MARQUES_FP2E_OBLIGATOIRE)
+    is_kamstrup = df['Marque'].str.upper() == 'KAMSTRUP'
+    is_u_kamstrup = marque_norm == 'UKAMSTRUP'
+
+    doit = presume_fp2e(df['Numéro de compteur']) & (~is_kamstrup) & (~is_u_kamstrup)
     if not doit.any():
         return
     present = ~df['Numéro de compteur'].isin(['', 'nan'])
