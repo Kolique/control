@@ -97,19 +97,6 @@ DEFAUT_PROTOCOLE_MARQUE = [
     ("SAPPEL (H)", 23, 99, "OMS"),
 ]
 
-# Compteurs qui DOIVENT être au format FP2E, selon (Marque, Année min, Mode).
-# Mode vide = tous ; Année min vide = toutes. Un compteur concerné dont le n'est
-# pas au format FP2E déclenche « Format de compteur non FP2E ».
-# NB : KAMSTRUP / U Kamstrup ont leur propre contrôle de format dans le code
-# (le préfixe 'U' distingue le FP2E du classique), ils ne passent PAS par ici.
-# Colonnes : Marque, Année min, Mode de relève
-DEFAUT_COMPTEURS_FP2E = [
-    ("SAPPEL (C)", "", ""),
-    ("SAPPEL (H)", "", ""),
-    ("ITRON", "", ""),
-]
-
-
 # =====================================================================
 #  Outils
 # =====================================================================
@@ -194,7 +181,6 @@ class ReglesConfig:
         self.diametre_fp2e = {k.upper(): list(v) for k, v in DEFAUT_DIAMETRE_FP2E.items()}
         self.longueur_compteur = list(DEFAUT_LONGUEUR_COMPTEUR)
         self.protocole_marque = list(DEFAUT_PROTOCOLE_MARQUE)
-        self.compteurs_fp2e = list(DEFAUT_COMPTEURS_FP2E)
 
     # ---- Vues normalisées (utilisées par le moteur) ----
 
@@ -256,17 +242,6 @@ class ReglesConfig:
                            _opt_int(amin, 0), _opt_int(amax, 9999), p))
         return regles
 
-    def regles_compteurs_fp2e(self) -> list:
-        """Retourne [(marque_norm, annee_min, mode|''), ...] : compteurs devant
-        respecter le format FP2E."""
-        regles = []
-        for (marque, amin, mode) in self.compteurs_fp2e:
-            mn = _norm(marque)
-            if not mn:
-                continue
-            regles.append((mn, _opt_int(amin, 0), _norm_mode(mode)))
-        return regles
-
 
 # =====================================================================
 #  Chargement
@@ -306,7 +281,6 @@ def charger_config(creer_si_absent: bool = True) -> ReglesConfig:
     _charger_diametre_fp2e(cfg, feuilles)
     _charger_longueur_compteur(cfg, feuilles)
     _charger_protocole_marque(cfg, feuilles)
-    _charger_compteurs_fp2e(cfg, feuilles)
     return cfg
 
 
@@ -486,22 +460,6 @@ def _charger_protocole_marque(cfg, feuilles):
         cfg.protocole_marque = res
 
 
-def _charger_compteurs_fp2e(cfg, feuilles):
-    df = _feuille(feuilles, "Compteurs_FP2E")
-    if df is None or "Marque" not in df.columns:
-        cfg.avertissements.append("Onglet 'Compteurs_FP2E' absent/incomplet : défaut utilisé.")
-        return
-    res = []
-    for _, row in df.iterrows():
-        marque = ("" if pd.isna(row.get("Marque")) else str(row.get("Marque"))).strip()
-        mode = ("" if pd.isna(row.get("Mode de relève")) else str(row.get("Mode de relève"))).strip()
-        amin = _opt_int(row.get("Année min"), "")
-        if marque:
-            res.append((marque, "" if amin == "" else amin, mode))
-    # Une feuille présente mais vide = aucune exigence FP2E (désactivation explicite)
-    cfg.compteurs_fp2e = res
-
-
 # =====================================================================
 #  Génération du fichier par défaut
 # =====================================================================
@@ -521,7 +479,6 @@ NOTICE = [
     ["  • Diametre_FP2E         : diamètre(s) correspondant à chaque lettre FP2E."],
     ["  • Longueur_compteur     : longueur exacte du n° de compteur (non-FP2E)."],
     ["  • Protocole_par_marque  : protocole Radio attendu par marque/année (radio)."],
-    ["  • Compteurs_FP2E        : quels compteurs doivent être au format FP2E."],
     [""],
     ["Règles :"],
     ["  - Mode = Radio, Tele ou Manuelle (selon l'onglet)."],
@@ -539,9 +496,6 @@ NOTICE = [
     ["    toutes années. Ne s'applique qu'aux compteurs NON-FP2E."],
     ["  - Onglet Protocole_par_marque (radio) : 'Année min'/'Année max' vides = pas"],
     ["    de borne. Ex. SAPPEL 0-22 -> WMS, 23-99 -> OMS."],
-    ["  - Onglet Compteurs_FP2E : liste les marques dont le compteur doit être au"],
-    ["    format FP2E ('Mode' vide = tous ; 'Année min' vide = toutes). KAMSTRUP et"],
-    ["    U Kamstrup ont leur propre contrôle et n'ont pas à figurer ici."],
     ["  - Ne renommez PAS les onglets ni les colonnes (en-têtes)."],
     ["  - En cas d'erreur de saisie, l'application ignore la partie concernée et"],
     ["    utilise les valeurs par défaut (elle ne plante pas)."],
@@ -579,8 +533,6 @@ def creer_fichier_defaut(chemin: str = None):
                                     columns=["Mode", "Marque", "Année min", "Longueur"])
     df_proto_marque = pd.DataFrame(DEFAUT_PROTOCOLE_MARQUE,
                                    columns=["Marque", "Année min", "Année max", "Protocole Radio"])
-    df_compteurs_fp2e = pd.DataFrame(DEFAUT_COMPTEURS_FP2E,
-                                     columns=["Marque", "Année min", "Mode de relève"])
     df_notice = pd.DataFrame(NOTICE)
 
     with pd.ExcelWriter(chemin, engine="openpyxl") as writer:
@@ -593,7 +545,6 @@ def creer_fichier_defaut(chemin: str = None):
         df_diam_fp2e.to_excel(writer, sheet_name="Diametre_FP2E", index=False)
         df_long_compteur.to_excel(writer, sheet_name="Longueur_compteur", index=False)
         df_proto_marque.to_excel(writer, sheet_name="Protocole_par_marque", index=False)
-        df_compteurs_fp2e.to_excel(writer, sheet_name="Compteurs_FP2E", index=False)
 
         # Largeur de colonnes lisible
         for ws in writer.book.worksheets:

@@ -153,37 +153,6 @@ def appliquer_commune_inconnue(df, cfg):
     df.loc[~connue, 'Anomalie'] += 'Commune inconnue (protocole non vérifié) / '
 
 
-def masque_doit_fp2e(df, mode, cfg, annee_num):
-    """Booléen : lignes dont le compteur DOIT être au format FP2E, selon l'onglet
-    'Compteurs_FP2E' (Marque, Année min, Mode). KAMSTRUP / U Kamstrup exclus
-    (contrôle de format dédié dans le code)."""
-    doit = pd.Series(False, index=df.index)
-    marque_norm = df['Marque'].str.upper().str.replace(' ', '', regex=False)
-    for (m_norm, amin, rmode) in cfg.regles_compteurs_fp2e():
-        if rmode and rmode != mode:
-            continue
-        sel = (marque_norm == m_norm)
-        if amin > 0:
-            sel = sel & (annee_num >= amin)
-        doit = doit | sel.fillna(False)
-    is_kamstrup = df['Marque'].str.upper() == 'KAMSTRUP'
-    is_u_kamstrup = marque_norm == 'UKAMSTRUP'
-    return doit & (~is_kamstrup) & (~is_u_kamstrup)
-
-
-def appliquer_format_fp2e(df, mode, cfg, annee_num, is_traite_special,
-                          has_fp2e_format, has_fp2e_suffix_format):
-    """Signale « Format de compteur non FP2E » pour les compteurs qui doivent
-    être FP2E (onglet 'Compteurs_FP2E') mais ne le sont pas."""
-    doit = masque_doit_fp2e(df, mode, cfg, annee_num)
-    if not doit.any():
-        return
-    present = ~df['Numéro de compteur'].isin(['', 'nan'])
-    fp2e_ok = has_fp2e_format | (is_traite_special & has_fp2e_suffix_format)
-    ko = doit & present & (~fp2e_ok)
-    df.loc[ko, 'Anomalie'] += 'Format de compteur non FP2E / '
-
-
 def colonnes_surlignage_defaut(libelle):
     """Déduit, à partir des mots-clés du libellé d'anomalie, les colonnes à
     surligner. Sert de repli lorsqu'un libellé n'est pas dans la table exacte
@@ -541,10 +510,6 @@ def check_data_radio(df):
     # Longueur du n° de compteur (non-FP2E) selon Mode/Marque/Année (configurable)
     appliquer_longueur_compteur(df_with_anomalies, 'Radio', cfg, annee_fabrication_num)
 
-    # Format FP2E requis selon l'onglet 'Compteurs_FP2E'
-    appliquer_format_fp2e(df_with_anomalies, 'Radio', cfg, annee_fabrication_num,
-                          is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
-
     # Longueurs de tête selon Mode/Marque/Type Compteur (configurable)
     appliquer_longueur_tete(df_with_anomalies, 'Radio', cfg)
 
@@ -830,10 +795,6 @@ def check_data_tele(df):
     # Longueur du n° de compteur (non-FP2E) selon Mode/Marque/Année (configurable)
     appliquer_longueur_compteur(df_with_anomalies, 'Tele', cfg, annee_fabrication_num)
 
-    # Format FP2E requis selon l'onglet 'Compteurs_FP2E'
-    appliquer_format_fp2e(df_with_anomalies, 'Tele', cfg, annee_fabrication_num,
-                          is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
-
     # Longueurs de tête selon Mode/Marque/Type Compteur (configurable)
     # Couvre SAPPEL (16, ou 15 pour SEN3) et ITRON (8).
     appliquer_longueur_tete(df_with_anomalies, 'Tele', cfg)
@@ -857,8 +818,6 @@ def check_data_tele(df):
     u_kamstrup_fp2e_check = is_u_kamstrup & has_fp2e_format
     fp2e_condition = ((is_sappel | is_itron) & (~is_mode_manuelle)) | (is_mode_manuelle & has_fp2e_format) | kamstrup_fp2e_check | u_kamstrup_fp2e_check
     # Contrôles dérivés (année/diamètre) sur les compteurs réellement FP2E.
-    # Le signalement « Format de compteur non FP2E » est géré séparément par
-    # appliquer_format_fp2e (onglet 'Compteurs_FP2E').
     fp2e_results = df_with_anomalies[fp2e_condition & has_fp2e_format].apply(check_fp2e_details_tele, axis=1)
 
     for index, result in fp2e_results.items():
@@ -1006,11 +965,6 @@ def check_data_manuelle(df):
     # Format compteur
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_REGEX, na=False)
     has_fp2e_suffix_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
-
-    # Format FP2E requis selon l'onglet 'Compteurs_FP2E'
-    annee_fabrication_num = pd.to_numeric(df_with_anomalies['Année de fabrication'], errors='coerce')
-    appliquer_format_fp2e(df_with_anomalies, 'Manuelle', cfg, annee_fabrication_num,
-                          is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
 
     # Cohérences Marque vs préfixes (C/H/I/D) - format FP2E standard
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C')
