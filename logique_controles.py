@@ -15,6 +15,13 @@ FP2E_WITH_SUFFIX_REGEX = r'^[A-Z]\d{2}[A-Z]{2}\d{6}[A-Z]$'  # FP2E + 1 lettre fi
 FP2E_DIAM_MAP = {k: list(v) for k, v in regles_config.DEFAUT_DIAMETRE_FP2E.items()}
 
 
+# Marques dont le numéro de compteur DOIT respecter le format FP2E (règle codée
+# en dur, non configurable). Comparaison en MAJUSCULES sans espaces.
+# KAMSTRUP / U Kamstrup ne figurent PAS ici : ils ont leur propre contrôle de
+# format dans le code (le préfixe 'U' distingue le FP2E du classique).
+MARQUES_FP2E_OBLIGATOIRE = frozenset({'SAPPEL(C)', 'SAPPEL(H)', 'ITRON'})
+
+
 def _diam_map_fp2e():
     """Table lettre -> [diamètres] issue de la configuration (avec repli)."""
     return regles_config.get_config().diametre_fp2e
@@ -151,6 +158,26 @@ def appliquer_commune_inconnue(df, cfg):
     commune_norm = df['Commune'].apply(regles_config.normaliser_commune)
     connue = commune_norm.isin(set(cfg.protocole_commune.keys()))
     df.loc[~connue, 'Anomalie'] += 'Commune inconnue (protocole non vérifié) / '
+
+
+def appliquer_format_fp2e(df, is_traite_special, has_fp2e_format, has_fp2e_suffix_format):
+    """Signale « Format de compteur non FP2E ».
+
+    Pour les marques dont le compteur DOIT être au format FP2E
+    (MARQUES_FP2E_OBLIGATOIRE : SAPPEL (C)/(H), ITRON), un numéro renseigné qui
+    ne respecte pas la signature visuelle FP2E est signalé. Le format FP2E est
+    reconnu par son motif visuel (une lettre, 2 chiffres, 2 lettres, 6 chiffres),
+    éventuellement suivi d'une lettre finale pour les Traités spéciaux
+    (965/455/899). KAMSTRUP / U Kamstrup ont leur propre contrôle (préfixe 'U').
+    """
+    marque_norm = df['Marque'].str.upper().str.replace(' ', '', regex=False)
+    doit = marque_norm.isin(MARQUES_FP2E_OBLIGATOIRE)
+    if not doit.any():
+        return
+    present = ~df['Numéro de compteur'].isin(['', 'nan'])
+    fp2e_ok = has_fp2e_format | (is_traite_special & has_fp2e_suffix_format)
+    ko = doit & present & (~fp2e_ok)
+    df.loc[ko, 'Anomalie'] += 'Format de compteur non FP2E / '
 
 
 def colonnes_surlignage_defaut(libelle):
@@ -510,6 +537,9 @@ def check_data_radio(df):
     # Longueur du n° de compteur (non-FP2E) selon Mode/Marque/Année (configurable)
     appliquer_longueur_compteur(df_with_anomalies, 'Radio', cfg, annee_fabrication_num)
 
+    # Format FP2E obligatoire pour SAPPEL/ITRON (règle codée en dur)
+    appliquer_format_fp2e(df_with_anomalies, is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
+
     # Longueurs de tête selon Mode/Marque/Type Compteur (configurable)
     appliquer_longueur_tete(df_with_anomalies, 'Radio', cfg)
 
@@ -795,6 +825,9 @@ def check_data_tele(df):
     # Longueur du n° de compteur (non-FP2E) selon Mode/Marque/Année (configurable)
     appliquer_longueur_compteur(df_with_anomalies, 'Tele', cfg, annee_fabrication_num)
 
+    # Format FP2E obligatoire pour SAPPEL/ITRON (règle codée en dur)
+    appliquer_format_fp2e(df_with_anomalies, is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
+
     # Longueurs de tête selon Mode/Marque/Type Compteur (configurable)
     # Couvre SAPPEL (16, ou 15 pour SEN3) et ITRON (8).
     appliquer_longueur_tete(df_with_anomalies, 'Tele', cfg)
@@ -965,6 +998,9 @@ def check_data_manuelle(df):
     # Format compteur
     has_fp2e_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_REGEX, na=False)
     has_fp2e_suffix_format = df_with_anomalies['Numéro de compteur'].str.match(FP2E_WITH_SUFFIX_REGEX, na=False)
+
+    # Format FP2E obligatoire pour SAPPEL/ITRON (règle codée en dur)
+    appliquer_format_fp2e(df_with_anomalies, is_traite_special, has_fp2e_format, has_fp2e_suffix_format)
 
     # Cohérences Marque vs préfixes (C/H/I/D) - format FP2E standard
     compteur_starts_C = df_with_anomalies['Numéro de compteur'].str.startswith('C')
