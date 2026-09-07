@@ -133,6 +133,26 @@ def appliquer_protocole_marque(df, cfg, annee_num):
         df.loc[mauvais, 'Correction Protocole Radio'] = proto
 
 
+def appliquer_commune_inconnue(df, cfg):
+    """Signale toute commune absente de la table de référence
+    'ProtocoleRadio_commune' (nouvelle règle, applicable à tous les modes).
+
+    - N'agit que si une table de communes est renseignée dans la configuration
+      (onglet non vide) : sinon le contrôle est désactivé (pas de faux positifs).
+    - N'agit que si la colonne 'Commune' existe dans le fichier analysé.
+    - La comparaison ignore la casse, les accents et la ponctuation
+      (via regles_config.normaliser_commune).
+
+    Ce contrôle est purement additif : il ne remplace ni ne modifie les autres
+    règles. En télérelève, le contrôle par commune existant reste inchangé.
+    """
+    if not cfg.protocole_commune or 'Commune' not in df.columns:
+        return
+    commune_norm = df['Commune'].apply(regles_config.normaliser_commune)
+    connue = commune_norm.isin(set(cfg.protocole_commune.keys()))
+    df.loc[~connue, 'Anomalie'] += 'Commune inconnue (protocole non vérifié) / '
+
+
 def masque_doit_fp2e(df, mode, cfg, annee_num):
     """Booléen : lignes dont le compteur DOIT être au format FP2E, selon l'onglet
     'Compteurs_FP2E' (Marque, Année min, Mode). KAMSTRUP / U Kamstrup exclus
@@ -415,6 +435,9 @@ def check_data_radio(df):
     # Protocole Radio attendu par marque/année (configurable : onglet 'Protocole_par_marque')
     cfg = regles_config.get_config()
     appliquer_protocole_marque(df_with_anomalies, cfg, annee_fabrication_num)
+
+    # Commune absente de la table de référence 'ProtocoleRadio_commune' (nouvelle règle)
+    appliquer_commune_inconnue(df_with_anomalies, cfg)
 
     # Manques / formats GPS
     df_with_anomalies.loc[df_with_anomalies['Marque'].isin(['', 'nan']), 'Anomalie'] += 'Marque manquante / '
@@ -961,6 +984,10 @@ def check_data_manuelle(df):
         'Anomalie'
     ] += 'Type Compteur non autorisé / '
 
+    # Commune absente de la table de référence 'ProtocoleRadio_commune' (nouvelle règle).
+    # Ne s'applique que si le fichier manuel contient une colonne 'Commune'.
+    appliquer_commune_inconnue(df_with_anomalies, cfg)
+
     # Marque autorisée en manuelle (liste blanche configurable)
     marques_autorisees_manuelle = cfg.marques_autorisees_norm('Manuelle')
     if marques_autorisees_manuelle:
@@ -1175,6 +1202,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "Incohérence Type Compteur": ['Type Compteur'],
             "Type Compteur non autorisé": ['Type Compteur'],
             "Type Compteur manquant": ['Type Compteur'],
+            "Commune inconnue (protocole non vérifié)": ['Commune'],
         }
     elif tab_type == "tele":
         anomaly_columns_map = {
@@ -1226,6 +1254,7 @@ def creer_rapport_excel_detaille(output_path, anomalies_df, anomaly_counter, tab
             "Incohérence Type Compteur": ['Type Compteur'],
             "Type Compteur non autorisé": ['Type Compteur'],
             "Type Compteur manquant": ['Type Compteur'],
+            "Commune inconnue (protocole non vérifié)": ['Commune'],
         }
 
     with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
